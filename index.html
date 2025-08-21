@@ -1,64 +1,36 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Guardias 24×48</title>
-<meta name="theme-color" content="#0ea5e9"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendario de Guardias</title>
 
-<link id="mf" rel="manifest"/>
-<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII="/>
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
 
-<!-- Tailwind y React -->
-<link rel="stylesheet" href="./style.css"/>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-<style>html,body,#root{height:100%}</style>
+  <!-- Estilos -->
+  <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-slate-900 text-slate-100">
-  <div id="root"></div>
+<body>
+  <header>
+    <h1>Calendario de Guardias</h1>
+  </header>
 
-  <!-- Tu app -->
-  <script type="text/babel" src="./main.js"></script>
+  <main id="app">
+    <!-- Aquí va tu app -->
+  </main>
 
-  <!-- Manifest dinámico + Service Worker (offline PWA) -->
+  <!-- Script principal -->
+  <script src="main.js"></script>
+
+  <!-- Registrar Service Worker -->
   <script>
-  const manifest = {
-    name: "Guardias 24×48",
-    short_name: "Guardias",
-    start_url: ".",
-    display: "standalone",
-    background_color: "#0f172a",
-    theme_color: "#0ea5e9",
-    icons: [
-      { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII=", sizes:"192x192", type:"image/png" },
-      { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII=", sizes:"512x512", type:"image/png" }
-    ]
-  };
-  const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
-  const url = URL.createObjectURL(blob);
-  document.getElementById('mf').setAttribute('href', url);
-
-  const canUseSW = 'serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost');
-  if (canUseSW) {
-    const swCode = `
-const CACHE = 'guardias-pwa-v4';
-self.addEventListener('install', e=>{ e.waitUntil((async()=>{ const c=await caches.open(CACHE); await c.addAll(['./','./index.html','./style.css','./main.js']); })()); self.skipWaiting(); });
-self.addEventListener('activate', e=>{ e.waitUntil(self.clients.claim()); });
-self.addEventListener('fetch', e=>{ if(e.request.method!=='GET') return;
-  e.respondWith((async()=>{ const c=await caches.open(CACHE); const m=await c.match(e.request); if(m) return m;
-    try{ const r=await fetch(e.request); try{ await c.put(e.request, r.clone()); }catch{} return r; }
-    catch(err){ const shell=await c.match('./'); if(shell) return shell; throw err; }
-  })());
-});`;
-    const swBlob = new Blob([swCode], {type:'text/javascript'});
-    navigator.serviceWorker.register(URL.createObjectURL(swBlob));
-  } else {
-    console.log('Modo sin SW (SPCK/preview). En HTTPS se activa offline.');
-  }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js")
+        .then(reg => console.log("✅ Service Worker registrado", reg.scope))
+        .catch(err => console.error("❌ Error registrando SW", err));
+    }
   </script>
 </body>
 </html>
