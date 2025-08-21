@@ -1,0 +1,543 @@
+<!DOCTYPE html><html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Guardias 24×48</title>
+<meta name="theme-color" content="#0ea5e9"/>
+<link id="mf" rel="manifest"/>
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII="/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  html,body,#root{height:100%}
+  ::-webkit-scrollbar{height:8px;width:8px}
+  ::-webkit-scrollbar-thumb{background:#334155;border-radius:8px}
+</style>
+</head>
+<body class="bg-slate-900 text-slate-100">
+<div id="root"></div><script type="text/babel">
+const {useState,useMemo,useEffect,useRef} = React;
+
+// ——— Utils ———
+const fmt = new Intl.DateTimeFormat("es-AR", { day:"2-digit" });
+const fmtMonth = new Intl.DateTimeFormat("es-AR", { month:"long", year:"numeric" });
+const ymd = d=>{ const x=new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); };
+const parseYMD = s=>{ const [Y,m,d]=s.split('-').map(Number); const x=new Date(Y,m-1,d); x.setHours(0,0,0,0); return x; };
+const addDays=(d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const startOfMonth=d=>{ const x=new Date(d.getFullYear(), d.getMonth(),1); x.setHours(0,0,0,0); return x; };
+const endOfMonth=d=> new Date(d.getFullYear(), d.getMonth()+1,0);
+
+// ——— Store ———
+const LS_KEY = "guardias.pwa.v1";
+
+// IndexedDB fallback para mayor robustez
+const IDB_NAME = 'guardias-db';
+const IDB_STORE = 'state';
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    const r = indexedDB.open(IDB_NAME,1);
+    r.onupgradeneeded = ()=> r.result.createObjectStore(IDB_STORE);
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = ()=> rej(r.error);
+  });
+}
+async function idbGet(key='singleton'){
+  try{ const db = await idbOpen(); return await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const st=tx.objectStore(IDB_STORE); const g=st.get(key); g.onsuccess=()=>res(g.result||null); g.onerror=()=>rej(g.error); }); }catch{ return null; }
+}
+async function idbSet(val,key='singleton'){
+  try{ const db = await idbOpen(); await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); const st=tx.objectStore(IDB_STORE); const p=st.put(val,key); p.onsuccess=()=>res(); p.onerror=()=>rej(p.error); }); }catch{}
+}
+
+function useStore(){
+  const [state,setState] = React.useState(()=>{
+    try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null") || { days:{}, pattern:{enabled:false,start:"",role:"Celador"}, settings:{autoBackup:false} }; }
+    catch{ return { days:{}, pattern:{enabled:false,start:"",role:"Celador"}, settings:{autoBackup:false} }; }
+  });
+  // Cargar desde IDB si existe (más resiliente que LS)
+  React.useEffect(()=>{ (async()=>{ const fromIDB = await idbGet(); if(fromIDB){ setState(fromIDB); } })(); },[]);
+  // Guardar en ambos
+  React.useEffect(()=>{ localStorage.setItem(LS_KEY, JSON.stringify(state)); idbSet(state); }, [state]);
+    // Cargar desde IDB si existe (más resiliente que LS)
+  React.useEffect(()=>{ (async()=>{ const fromIDB = await idbGet(); if(fromIDB){ setState(fromIDB); } else { const backup = await idbGet('backupHandle'); if(backup){ try{ const h = backup; const perm = await h.queryPermission?.({mode:'read'}) || 'granted'; if(perm==='granted' || (await h.requestPermission?.({mode:'read'}))==='granted'){ const f = await h.getFile(); const txt = await f.text(); const data = JSON.parse(txt); if(data && data.days){ setState(data); } } }catch{} } } })(); },[]);
+  // Guardar en ambos
+  React.useEffect(()=>{ localStorage.setItem(LS_KEY, JSON.stringify(state)); idbSet(state); autoBackupWrite(state); }, [state]);
+  return [state,setState];
+}
+
+// ——— App ———
+
+function App(){
+  const [store,setStore] = useStore();
+  const today = new Date();
+  const [cursor,setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedKey,setSelectedKey] = useState(ymd(today));
+  const [showImport,setShowImport] = useState(false);
+
+  const cells = useMemo(()=>{
+    const start = startOfMonth(cursor);
+    const startWeekDay = (start.getDay()+6)%7; // Lunes=0
+    const first = addDays(start,-startWeekDay);
+    return Array.from({length:42},(_,i)=> addDays(first,i));
+  },[cursor]);
+
+  const patternOn = useMemo(()=>{
+    const p=store.pattern; if(!p.enabled||!p.start) return ()=>false;
+    const s=parseYMD(p.start);
+    return d=>{ const a=Math.floor((d-s)/(86400000)); return a>=0 && (a%3===0); };
+  },[store.pattern]);
+
+  function dayData(k){ return store.days[k] || emptyDay(k, store.pattern.role); }
+  function saveDay(k,patch){ setStore(s=> ({...s, days:{...s.days, [k]:{...dayData(k), ...patch}} })); }
+  function toggleDay(k){ const d=dayData(k); saveDay(k,{guardia:!d.guardia}); }
+  function clearAll(){ if(confirm("¿Borrar todos los datos?")) setStore({days:{}, pattern:{enabled:false,start:"",role:"Celador"}}); }
+
+  function exportJSON(){
+    const blob = new Blob([JSON.stringify(store,null,2)],{type:"application/json"});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`guardias-${Date.now()}.json`; a.click(); URL.revokeObjectURL(a.href);
+  }
+  function importJSON(file){
+    const rd=new FileReader(); rd.onload=()=>{ try{ const data=JSON.parse(rd.result); if(data&&data.days&&data.pattern){ setStore(data); alert('Datos importados'); } else alert('Archivo inválido'); } catch(e){ alert('No se pudo leer el JSON'); } }; rd.readAsText(file);
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      <Header cursor={cursor} setCursor={setCursor} clearAll={clearAll} goToday={()=>setCursor(new Date())} />
+
+      <div className="px-3 pb-2">
+        <PatternBar store={store} setStore={setStore} setCursor={setCursor} />
+      </div>
+
+      <MonthGrid
+        cells={cells}
+        cursor={cursor}
+        onOpen={(d)=>setSelectedKey(ymd(d))}
+        onToggle={(d)=>toggleDay(ymd(d))}
+        getDay={k=>dayData(k)}
+        isOn={d=> dayData(ymd(d)).guardia || (patternOn(d) && !dayData(ymd(d)).offOverride)}
+      />
+
+      <FooterActions onExport={exportJSON} onOpenImport={()=>setShowImport(true)} />
+
+      <DayDrawer
+        ymdKey={selectedKey}
+        data={dayData(selectedKey)}
+        onChange={(patch)=>saveDay(selectedKey, patch)}
+      />
+
+      {showImport && (
+        <Modal onClose={()=>setShowImport(false)} title="Importar JSON">
+          <p className="text-sm text-slate-300 mb-2">Seleccioná un archivo exportado anteriormente.</p>
+          <input type="file" accept="application/json" className="block w-full mb-3" onChange={e=>{ const f=e.target.files?.[0]; if(f){ importJSON(f); setShowImport(false);} }} />
+          <div className="text-xs text-slate-400">Esto reemplaza todos los datos actuales.</div>
+        </Modal>
+      )}
+
+      <InstallPrompt/>
+    </div>
+  );
+}
+
+function Header({cursor,setCursor,clearAll,goToday}){
+  const prev=()=> setCursor(d=> new Date(d.getFullYear(), d.getMonth()-1,1));
+  const next=()=> setCursor(d=> new Date(d.getFullYear(), d.getMonth()+1,1));
+  return (
+    <header className="px-3 py-2 bg-slate-950 border-b border-slate-800 flex items-center gap-2">
+      <button onClick={prev} className="px-3 py-2 rounded-xl bg-slate-800 active:scale-95">◀</button>
+      <div className="text-lg font-medium flex-1 text-center select-none capitalize">{fmtMonth.format(cursor)}</div>
+      <button onClick={next} className="px-3 py-2 rounded-xl bg-slate-800 active:scale-95">▶</button>
+      <button onClick={goToday} className="ml-1 px-3 py-2 rounded-xl bg-sky-600 active:scale-95">Hoy</button>
+      <button onClick={clearAll} className="ml-1 px-3 py-2 rounded-xl bg-rose-600 active:scale-95">Borrar</button>
+    </header>
+  );
+}
+
+function PatternBar({store,setStore,setCursor}){
+  const [start,setStart]=useState(store.pattern.start||ymd(new Date()));
+  useEffect(()=> setStart(store.pattern.start||ymd(new Date())), [store.pattern.start]);
+  return (
+    <div className="bg-slate-800/60 rounded-2xl p-3 flex flex-col gap-2">
+      <div className="text-sm">Patrón 24×48: 1 día de trabajo, 2 de franco</div>
+      <div className="flex items-center gap-2">
+        <label className="text-sm shrink-0">Inicio:</label>
+        <input type="date" value={start} onChange={e=>setStart(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/>
+        <select value={store.pattern.role} onChange={e=>setStore(s=>({...s, pattern:{...s.pattern, role:e.target.value}}))} className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-2">
+          <option>Celador</option>
+          <option>Auxiliar</option>
+        </select>
+        <button onClick={()=>{ setStore(s=>({...s, pattern:{...s.pattern, start:start, enabled: !s.pattern.enabled}})); setCursor(new Date(start)); }} className={`px-3 py-2 rounded-xl ${store.pattern.enabled?"bg-emerald-600":"bg-slate-700"}`}>{store.pattern.enabled?"Patrón: ON":"Patrón: OFF"}</button>
+      </div>
+      <div className="text-xs text-slate-400">Tocá un día para abrirlo. Doble toque para alternar Guardia.</div>
+    </div>
+  );
+}
+
+function MonthGrid({cells,cursor,onOpen,onToggle,getDay,isOn}){
+  const weekdays = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  return (
+    <div className="flex-1 overflow-y-auto px-2 pb-20">
+      <div className="grid grid-cols-7 text-center text-xs text-slate-400 mb-1 select-none">
+        {weekdays.map(w=> <div key={w} className="py-1">{w}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d,i)=>{
+          const inMonth = d.getMonth()===cursor.getMonth();
+          const k = ymd(d);
+          const dd = getDay(k);
+          const active = isOn(d);
+          const isToday = ymd(new Date())===k;
+          return (
+            <DayCell key={i}
+              date={d}
+              inMonth={inMonth}
+              isOn={active}
+              today={isToday}
+              role={dd.role}
+              onOpen={()=>onOpen(d)}
+              onToggle={()=>onToggle(d)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+  const pills = [
+    isOn && {label:'Guardia', cls:'bg-emerald-600'},
+    flags.guardiaPaga && {label:'Guardia paga', cls:'bg-fuchsia-500'},
+    flags.cambioGuardia && {label:'Cambio de Guardia', cls:'bg-sky-500'},
+    flags.recargo && {label:'Recargo', cls:'bg-amber-500'},
+    flags.cambioRecargo && {label:'Cambio de Recargo', cls:'bg-indigo-500'},
+    flags.recargoPago && {label:'Recargo pago', cls:'bg-emerald-500'}
+  ].filter(Boolean);
+  return (
+    <button onClick={handleClick} className={`aspect-square rounded-xl p-1 flex flex-col items-start justify-between ${inMonth?"bg-slate-800":"bg-slate-800/30"} ${today?"ring-2 ring-emerald-400":""}`}>
+      <div className="text-[11px] opacity-80">{fmt.format(date)}</div>
+      <div className="w-full space-y-1">
+        {isOn ? (
+          <span className="text-[10px] px-1 py-0.5 rounded bg-emerald-600">{role||"Guardia"}</span>
+        ) : (
+          <span className="text-[10px] px-1 py-0.5 rounded bg-slate-700 opacity-60">Franco</span>
+        )}
+        {pills.length>0 && (
+          <div className="flex flex-wrap gap-0.5">
+            {pills.map((p,i)=> <span key={i} className={`text-[9px] px-1 rounded ${p.cls}`}>{p.label}</span>)}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+ onClick={handleClick} className={`aspect-square rounded-xl p-1 flex flex-col items-start justify-between ${inMonth?"bg-slate-800":"bg-slate-800/30"} ${today?"ring-2 ring-emerald-400":""}`}>
+      <div className="text-[11px] opacity-80">{fmt.format(date)}</div>
+      <div className="w-full">
+        {isOn ? (
+          <span className="text-[10px] px-1 py-0.5 rounded bg-emerald-600">{role||"Guardia"}</span>
+        ) : (
+          <span className="text-[10px] px-1 py-0.5 rounded bg-slate-700 opacity-60">Franco</span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function emptyDay(key, role){
+  return {
+    key,
+    guardia:false,
+    offOverride:false,
+    pabellon:"",
+    poblacion:{ total:"", condenados:"", procesados:"", presentes:"", hospitalizados:"" },
+    role: role||"Celador",
+    companeros:"",
+    notas:"",
+    // Marcadores/etiquetas del día
+    flags:{
+      guardiaPaga:false,       // Guardia paga (me pagaron para cubrir)
+      cambioGuardia:false,     // Cambio de Guardia (intercambié turno)
+      recargo:false,           // Recargo propio (me tocaba a mí)
+      cambioRecargo:false,     // Cambio de Recargo (cambio de lugar en lista)
+      recargoPago:false        // Recargo pago (me pagaron para cubrir su recargo)
+    },
+    movimientos:[],
+    poblacionListado:[]
+  };
+}
+
+    movimientos:[],
+    poblacionListado:[]
+  };
+}
+
+function Field({label, ...props}){
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="opacity-80">{label}</span>
+      <input {...props} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
+    </label>
+  );
+}
+function TextArea({label, ...props}){
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="opacity-80">{label}</span>
+      <textarea {...props} rows={3} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
+    </label>
+  );
+}
+function Row({children,cols="grid-cols-2"}){ return <div className={`grid ${cols} gap-2`}>{children}</div>; }
+
+function DiaForm({data,onChange}){
+  const P = data.poblacion || {};
+  return (
+    <div className="space-y-2 max-h-[38vh] overflow-y-auto pr-1 pb-1">
+      <Row cols="grid-cols-3">
+        <Field label="Pabellón" value={data.pabellon} onChange={e=>onChange({pabellon:e.target.value})} />
+        <Field label="Población total" value={P.total} onChange={e=>onChange({ poblacion:{...P, total:e.target.value} })} />
+        <Field label="Presentes" value={P.presentes} onChange={e=>onChange({ poblacion:{...P, presentes:e.target.value} })} />
+      </Row>
+      <Row cols="grid-cols-3">
+        <Field label="Condenados" value={P.condenados} onChange={e=>onChange({ poblacion:{...P, condenados:e.target.value} })} />
+        <Field label="Procesados" value={P.procesados} onChange={e=>onChange({ poblacion:{...P, procesados:e.target.value} })} />
+        <Field label="Hospitalizados" value={P.hospitalizados} onChange={e=>onChange({ poblacion:{...P, hospitalizados:e.target.value} })} />
+      </Row>
+      <Field label="Acompañado por (nombres separados por coma)" value={data.companeros} onChange={e=>onChange({companeros:e.target.value})} />
+      <TextArea label="Notas" value={data.notas} onChange={e=>onChange({notas:e.target.value})} />
+      <div className="text-xs text-slate-400">Tip: escribí "Juan, Pérez, López" para varios acompañantes.</div>
+    </div>
+  );
+}
+
+function Marcadores({data,onChange}){
+  const f = data.flags||{};
+  function toggle(k){ onChange({ flags:{...f, [k]: !f[k]} }); }
+  return (
+    <div className="space-y-2 max-h-[38vh] overflow-y-auto pr-1 pb-1">
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={()=>toggle('guardiaPaga')} className={`px-3 py-2 rounded-xl border text-left ${f.guardiaPaga? 'bg-fuchsia-500/30 border-fuchsia-500':'bg-slate-800 border-slate-700'}`}>Guardia paga</button>
+        <button onClick={()=>toggle('cambioGuardia')} className={`px-3 py-2 rounded-xl border text-left ${f.cambioGuardia? 'bg-sky-500/30 border-sky-500':'bg-slate-800 border-slate-700'}`}>Cambio de Guardia</button>
+        <button onClick={()=>toggle('recargo')} className={`px-3 py-2 rounded-xl border text-left ${f.recargo? 'bg-amber-500/30 border-amber-500':'bg-slate-800 border-slate-700'}`}>Recargo</button>
+        <button onClick={()=>toggle('cambioRecargo')} className={`px-3 py-2 rounded-xl border text-left ${f.cambioRecargo? 'bg-indigo-500/30 border-indigo-500':'bg-slate-800 border-slate-700'}`}>Cambio de Recargo</button>
+        <button onClick={()=>toggle('recargoPago')} className={`px-3 py-2 rounded-xl border text-left ${f.recargoPago? 'bg-emerald-500/30 border-emerald-500':'bg-slate-800 border-slate-700'}`}>Recargo pago</button>
+      </div>
+      <div className="text-xs text-slate-400">Marcá lo que corresponda. "Guardia" aparece automáticamente cuando el día está en ON.</div>
+    </div>
+  );
+}
+
+function MovimientosTable({rows,onChange}){
+  const PRESETS = [
+    'Reclusión','Recuento Físico','Apertura','Patio Externo','Almuerzo','Cena',
+    'Servicio Médico','Abogado/Defensor','Cambio de Alojamiento','Libertad','Ingreso','Talleres'
+  ];
+  function add(){ onChange([ ...rows, { objeto:"", entrada:"", salida:"", movimiento:"", a_cargo:"" } ]); }
+  function del(i){ const c=[...rows]; c.splice(i,1); onChange(c); }
+  function set(i, patch){ const c=[...rows]; c[i] = { ...c[i], ...patch }; onChange(c); }
+  return (
+    <div className="max-h-[38vh] overflow-y-auto pr-1 pb-1">
+      <div className="grid grid-cols-5 text-[11px] uppercase tracking-wide text-slate-400 mb-1 px-1">
+        <div>Objeto</div><div>Entrada</div><div>Salida</div><div>Movimiento</div><div>A cargo de</div>
+      </div>
+      <div className="space-y-2">
+        {rows.map((r,i)=> (
+          <div key={i} className="grid grid-cols-5 gap-1">
+            <input list="obj-presets" value={r.objeto} onChange={e=>set(i,{objeto:e.target.value})} placeholder="Reclusión, Apertura…" className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
+            <input value={r.entrada} onChange={e=>set(i,{entrada:e.target.value})} placeholder="08:00" className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
+            <input value={r.salida} onChange={e=>set(i,{salida:e.target.value})} placeholder="20:00" className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
+            <input value={r.movimiento} onChange={e=>set(i,{movimiento:e.target.value})} placeholder="Detalle breve" className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
+            <div className="flex gap-1">
+              <input value={r.a_cargo} onChange={e=>set(i,{a_cargo:e.target.value})} placeholder="Apellido" className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm flex-1"/>
+              <button onClick={()=>del(i)} className="px-2 rounded-lg bg-rose-600">✕</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <datalist id="obj-presets">
+        {PRESETS.map(p=> <option key={p} value={p}/>) }
+      </datalist>
+      <div className="mt-2 flex justify-end">
+        <button onClick={add} className="px-3 py-2 rounded-xl bg-emerald-600">Agregar fila</button>
+      </div>
+    </div>
+  );
+}
+
+function PoblacionTable({rows,onChange}){
+  function add(){ onChange([ ...rows, { matricula:"", nombre:"" } ]); }
+  function del(i){ const c=[...rows]; c.splice(i,1); onChange(c); }
+  function set(i, patch){ const c=[...rows]; c[i] = { ...c[i], ...patch }; onChange(c); }
+  return (
+    <div className="max-h-[38vh] overflow-y-auto pr-1 pb-1">
+      <div className="grid grid-cols-2 text-[11px] uppercase tracking-wide text-slate-400 mb-1 px-1">
+        <div>Matrícula</div><div>Nombre</div>
+      </div>
+      <div className="space-y-2">
+        {rows.map((r,i)=> (
+          <div key={i} className="grid grid-cols-2 gap-1">
+            <input value={r.matricula} onChange={e=>set(i,{matricula:e.target.value})} placeholder="000123" className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
+            <div className="flex gap-1">
+              <input value={r.nombre} onChange={e=>set(i,{nombre:e.target.value})} placeholder="Apellido, Nombre" className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm flex-1"/>
+              <button onClick={()=>del(i)} className="px-2 rounded-lg bg-rose-600">✕</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex justify-end">
+        <button onClick={add} className="px-3 py-2 rounded-xl bg-emerald-600">Agregar fila</button>
+      </div>
+    </div>
+  );
+}
+
+function Tabs({value,onChange,items}){
+  return (
+    <div className="flex gap-2 mb-2 overflow-auto">
+      {Object.entries(items).map(([k,label])=> (
+        <button key={k} onClick={()=>onChange(k)} className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${value===k?"bg-sky-600":"bg-slate-800"}`}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+function Toggle({label,value,onChange}){
+  return (
+    <button onClick={()=>onChange(!value)} className={`text-sm px-3 py-1.5 rounded-full border ${value?"bg-emerald-600 border-emerald-500":"bg-slate-800 border-slate-700"}`}>
+      {label}: {value?"ON":"OFF"}
+    </button>
+  );
+}
+
+function DayDrawer({ymdKey,data,onChange}){
+  const [tab,setTab]=useState("resumen");
+  useEffect(()=> setTab("resumen"), [ymdKey]);
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 p-3 pt-2">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="text-sm opacity-80">{ymdKey}</div>
+        <div className="ml-auto flex gap-2">
+          <Toggle label="Guardia" value={data.guardia} onChange={(v)=>onChange({ guardia:v, offOverride: !v && data.offOverride })} />
+          <select value={data.role} onChange={e=>onChange({ role:e.target.value })} className="bg-slate-800 border border-slate-700 rounded-xl px-2 py-2 text-sm">
+            <option>Celador</option>
+            <option>Auxiliar</option>
+          </select>
+        </div>
+      </div>
+      <Tabs value={tab} onChange={setTab} items={{resumen:"Día", marcadores:"Marcadores", movimientos:"Movimientos / Machete", poblacion:"Población"}}/>
+      {tab==="resumen" && <DiaForm data={data} onChange={onChange}/>} 
+      {tab==="marcadores" && <Marcadores data={data} onChange={onChange}/>} 
+      {tab==="movimientos" && <MovimientosTable rows={data.movimientos} onChange={rows=>onChange({movimientos:rows})}/>} 
+      {tab==="poblacion" && <PoblacionTable rows={data.poblacionListado} onChange={rows=>onChange({poblacionListado:rows})}/>} 
+    </div>
+  );
+}
+
+function FooterActions({onExport,onOpenImport}){
+  return (
+    <div className="fixed bottom-[56px] right-3 flex flex-col gap-2 items-end">
+      <div className="flex gap-2">
+        <button onClick={onExport} className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700">Exportar</button>
+        <button onClick={onOpenImport} className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700">Importar</button>
+      </div>
+      <BackupControls/>
+      <Legend/>
+    </div>
+  );
+}
+
+function Modal({title,children,onClose}){
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+      <div className="bg-slate-900 rounded-2xl w-full max-w-md p-4" onClick={e=>e.stopPropagation()}>
+        <div className="text-lg mb-2">{title}</div>
+        {children}
+        <div className="mt-3 text-right"><button className="px-3 py-2 rounded-xl bg-slate-800" onClick={onClose}>Cerrar</button></div>
+      </div>
+    </div>
+  );
+}
+
+// —— Auto-respaldo en archivo (File System Access API) ——
+async function ensureBackupHandle(){
+  try{
+    let h = await idbGet('backupHandle');
+    if(!h){ h = await window.showSaveFilePicker({suggestedName:'guardias-respaldo.json', types:[{description:'JSON', accept:{'application/json':['.json']}}]}); await idbSet(h,'backupHandle'); }
+    return h;
+  }catch(e){ alert('No se pudo obtener el archivo de respaldo'); throw e; }
+}
+async function autoBackupWrite(state){
+  try{ const h = await idbGet('backupHandle'); if(!h) return; const perm = await h.queryPermission?.({mode:'readwrite'}) || 'granted'; if(perm!=='granted'){ const r = await h.requestPermission?.({mode:'readwrite'}); if(r!=='granted') return; }
+    const ws = await h.createWritable(); await ws.write(new Blob([JSON.stringify(state,null,2)],{type:'application/json'})); await ws.close();
+  }catch{}
+}
+function BackupControls(){
+  const [has, setHas] = React.useState(false);
+  React.useEffect(()=>{ (async()=>{ const h = await idbGet('backupHandle'); setHas(!!h); })(); },[]);
+  async function choose(){ try{ await ensureBackupHandle(); setHas(true); alert('Auto-respaldo activado'); }catch{} }
+  async function disable(){ await idbSet(null,'backupHandle'); setHas(false); alert('Auto-respaldo desactivado'); }
+  return (
+    <div className="flex gap-2">
+      {!has ? (
+        <button onClick={choose} className="px-3 py-2 rounded-xl bg-emerald-700">Auto-respaldo</button>
+      ) : (
+        <button onClick={disable} className="px-3 py-2 rounded-xl bg-slate-700">Quitar auto-respaldo</button>
+      )}
+    </div>
+  );
+}
+
+function InstallPrompt(){
+  const [deferred,setDeferred] = useState(null);
+  const [ready,setReady] = useState(false);
+  useEffect(()=>{
+    function onBI(e){ e.preventDefault(); setDeferred(e); setReady(true); }
+    window.addEventListener('beforeinstallprompt', onBI);
+    return ()=> window.removeEventListener('beforeinstallprompt', onBI);
+  },[]);
+  if(!ready) return null;
+  return (
+    <div className="fixed bottom-3 left-0 right-0 flex justify-center">
+      <button className="px-4 py-2 rounded-full bg-sky-600 shadow-lg" onClick={async()=>{ await deferred.prompt(); const {outcome}=await deferred.userChoice; if(outcome!=="dismissed") setReady(false); }}>
+        Instalar app
+      </button>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script><script>
+// —— Manifest dinámico (único archivo) ——
+const manifest = {
+  name: "Guardias 24×48",
+  short_name: "Guardias",
+  start_url: ".",
+  display: "standalone",
+  background_color: "#0f172a",
+  theme_color: "#0ea5e9",
+  icons: [
+    { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII=", sizes:"192x192", type:"image/png" },
+    { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII=", sizes:"512x512", type:"image/png" }
+  ]
+};
+const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
+const url = URL.createObjectURL(blob);
+document.getElementById('mf').setAttribute('href', url);
+
+// —— Service Worker inline (blob) ——
+const swCode = `
+self.addEventListener('install', e=>{
+  e.waitUntil((async()=>{ const c=await caches.open('guardias-pwa-v1'); await c.addAll(['./']); })());
+  self.skipWaiting();
+});
+self.addEventListener('activate', e=>{ e.waitUntil(self.clients.claim()); });
+self.addEventListener('fetch', e=>{
+  const url = new URL(e.request.url);
+  if(url.origin===location.origin){
+    e.respondWith((async()=>{ const c=await caches.open('guardias-pwa-v1'); const m=await c.match(e.request); if(m) return m; const r=await fetch(e.request); if(e.request.method==='GET' && r.ok){ c.put(e.request, r.clone()); } return r; })());
+  }
+});`;
+const swBlob = new Blob([swCode], {type:'text/javascript'});
+navigator.serviceWorker?.register(URL.createObjectURL(swBlob));
+</script></body>
+</html>
