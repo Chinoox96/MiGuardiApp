@@ -18,7 +18,18 @@
   </header>
 
   <main id="app">
-    <!-- Aquí va tu app -->
+    <!-- Calendario generado -->
+    <div id="calendar"></div>
+    <!-- Ventana detalle (se muestra al tocar un día) -->
+    <div id="dayDetail" class="hidden">
+      <button id="backBtn">⬅ Volver</button>
+      <h2 id="selectedDate"></h2>
+      <div class="tabs">
+        <button class="tabBtn" data-tab="guardia">Guardia</button>
+        <button class="tabBtn" data-tab="poblacion">Población</button>
+      </div>
+      <div id="tabContent"></div>
+    </div>
   </main>
 
   <!-- Script principal -->
