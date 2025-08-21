@@ -1,535 +1,723 @@
-const {useState,useMemo,useEffect,useRef} = React;
+/* main.js — Vanilla JS (sin JSX) */
 
-/* ========= Utils ========= */
-const fmtDay = new Intl.DateTimeFormat("es-AR", { day:"2-digit" });
-const fmtMonth = new Intl.DateTimeFormat("es-AR", { month:"long", year:"numeric" });
-const fmtFull = new Intl.DateTimeFormat("es-AR", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+// --------- Estado y utilidades ----------
+const LS_KEY = "guardias.state.v3";
 
-const ymd = d => { const x=new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); };
-const parseYMD = s => { const [Y,m,d]=s.split('-').map(Number); const x=new Date(Y,m-1,d); x.setHours(0,0,0,0); return x; };
-const addDays = (d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return x; };
-const startOfMonth = d => { const x=new Date(d.getFullYear(), d.getMonth(),1); x.setHours(0,0,0,0); return x; };
-const isWeekend = d => [0,6].includes(new Date(d).getDay()); // dom=0, sab=6
-const nowTimeHHMM = () => new Date().toTimeString().slice(0,5);
-
-/* ========= Persistencia ========= */
-const LS_KEY = "guardias.pwa.v3";
-const IDB_NAME = 'guardias-db';
-const IDB_STORE = 'state';
-function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
-async function idbGet(key='singleton'){ try{ const db=await idbOpen(); return await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const st=tx.objectStore(IDB_STORE); const g=st.get(key); g.onsuccess=()=>res(g.result||null); g.onerror=()=>rej(g.error); }); }catch{ return null; } }
-async function idbSet(val,key='singleton'){ try{ const db=await idbOpen(); await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); const st=tx.objectStore(IDB_STORE); const p=st.put(val,key); p.onsuccess=()=>res(); p.onerror=()=>rej(p.error); }); }catch{} }
-
-/* ========= Estado inicial ========= */
-function defaultState(){
-  return {
-    days: {},                                   // { 'YYYY-MM-DD': DayData }
-    pattern: { enabled:false, start:"", turno:"B" },
-    colors: {                                    // Colores configurables por estado
-      guardia: "#0ea5e9",                        // azul
-      recargo: "#eab308",                        // amarillo
-      art: "#ef4444",                            // rojo
-      licencia: "#60a5fa",                       // celeste
-      patternGuardiaBg: "rgba(16,185,129,0.25)", // verde translúcido
-      selected: "#22c55e",                       // selección
-      today: "#34d399"                           // hoy (borde)
+const state = loadState() || {
+  settings: {
+    patternEnabled: false,
+    patternStart: "",     // YYYY-MM-DD (día de Guardia)
+    turno: "B",           // A | B | C (referencial)
+    colors: {             // Colores por tipo (no repetir)
+      patternGuardiaBg: "#14532d",
+      selected: "#38bdf8",
+      today: "#10b981",
+      guardia: "#0ea5e9",
+      recargo: "#f59e0b",
+      art: "#a855f7",
+      licencia: "#ef4444"
     },
-    holidays: [],                                // Lista de feriados 'YYYY-MM-DD' (vacío para que vos la cargues)
-    notes: [],                                   // Notas sueltas (sueldo, ART nº, etc.)
-    objectSuggestions: []                        // Sugerencias personalizadas para "Objeto" (empieza vacío)
-  };
+    feriados: []          // YYYY-MM-DD (opcional)
+  },
+  days: {},               // { "YYYY-MM-DD": {estado, pago, swap, quien, ...}
+  autoObj: [              // sugerencias iniciales
+    "Reclusión","Recuento Físico","Apertura","Patio Externo",
+    "Almuerzo","Cena","Servicio Médico","Abogado/Defensor",
+    "Cambio de Alojamiento","Libertad","Ingreso","Talleres"
+  ],
+  lastSelected: null,     // "YYYY-MM-DD"
+};
+
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+function loadState(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch{ return null; } }
+
+const $ = (sel,root=document)=>root.querySelector(sel);
+const $$ = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
+
+function ymd(d){
+  const x=new Date(d); x.setHours(0,0,0,0);
+  return x.toISOString().slice(0,10);
+}
+function parseYMD(s){ const [Y,m,d]=s.split("-").map(Number); const x=new Date(Y,m-1,d); x.setHours(0,0,0,0); return x; }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+const fmtMonth = new Intl.DateTimeFormat("es-AR", { month:"long", year:"numeric" });
+const fmtDay = new Intl.DateTimeFormat("es-AR", { weekday:"long", day:"2-digit", month:"2-digit", year:"numeric" });
+
+// Patrón 24×48 infinito (true si ese día es guardia según patrón)
+function isPatternGuardia(date){
+  const { patternEnabled, patternStart } = state.settings;
+  if(!patternEnabled || !patternStart) return false;
+  const diff = Math.floor((parseYMD(ymd(date)) - parseYMD(patternStart))/86400000);
+  return diff % 3 === 0;
 }
 
-function useStore(){
-  const [state,setState] = useState(()=>{
-    try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null") || defaultState(); }
-    catch{ return defaultState(); }
-  });
-  useEffect(()=>{ (async()=>{ const from = await idbGet(); if(from){ setState(from); }})(); },[]);
-  useEffect(()=>{ localStorage.setItem(LS_KEY, JSON.stringify(state)); idbSet(state); },[state]);
-  return [state,setState];
-}
-
-/* ========= Modelos ========= */
-function emptyDay(key){
-  return {
-    key,
-    pabellon:"",
-    poblacion:{ total:"", condenados:"", procesados:"", presentes:"", hospitalizados:"" },
-    role:"", // Celador/Auxiliar SOLO dentro de Guardia
-    companeros:"",
-    notas:"",
-    // Estado EXCLUSIVO. Solo 1 por día:
-    // 'guardia' | 'recargo' | 'cubro_guardia' | 'me_cubre_guardia' | 'cubro_recargo' | 'me_cubre_recargo' | 'art' | 'licencia'
-    estado: null,
-    // flags auxiliares: una fecha NO puede ser 💲 y 🔄 a la vez
-    pago:false,  // 💲
-    swap:false,  // 🔄
-    linkedDate:"", // si es swap con devolución, fecha espejo
-    linkedType:"", // tipo espejo sugerido
-    movimientos:[],            // [{objeto,entrada,salida,movimiento,a_cargo}]
-    poblacionListado:[]        // [{matricula, cp:'C'|'P', nombre}]
-  };
-}
-
-/* ========= Cálculos licencia ========= */
-function expandLicenseByDates(startStr, endStr){
-  const start = parseYMD(startStr), end = parseYMD(endStr);
-  const out=[];
-  for(let d=new Date(start); d<=end; d=addDays(d,1)) out.push(ymd(d));
-  return out;
-}
-function expandLicenseByWorkingDays(startStr, count, holidaysSet, skipWeekends=true){
-  const out=[]; let d=parseYMD(startStr);
-  while(out.length < count){
-    const key=ymd(d);
-    const weekend = skipWeekends && isWeekend(d);
-    const holiday = holidaysSet.has(key);
-    if(!(weekend || holiday)){ out.push(key); }
-    d = addDays(d,1);
+// Obtener/crear datos de día
+function getDay(key){
+  if(!state.days[key]){
+    state.days[key] = {
+      key,
+      // Estado exclusivo:
+      // null | 'recargo' | 'cubro_guardia' | 'me_cubre_guardia' | 'cubro_recargo' | 'me_cubre_recargo' | 'art' | 'licencia'
+      estado: null,
+      pago: false,            // 💲
+      swap: false,            // 🔄 (mutuamente excluyente con pago)
+      quien: "",              // para cubro/me cubre
+      linkedDate: "",         // fecha espejo si swap
+      linkedType: "",         // tipo espejo
+      licenciaHasta: "",      // si este día inicia una licencia por rango
+      pabellon: "",
+      role: "Celador",        // rol sólo editable en pestaña guardia
+      companeros: "",
+      notas: "",
+      poblacion: { total:"", condenados:"", procesados:"", presentes:"", hospitalizados:"" },
+      movimientos: [],        // {objeto, entrada, salida, movimiento, a_cargo}
+      poblacionListado: []    // {matricula, cp:'C'|'P', nombre}
+    };
   }
-  return out;
+  return state.days[key];
 }
-function expandLicenseByCalendarDays(startStr, count){
-  const out=[]; let d=parseYMD(startStr);
-  for(let i=0;i<count;i++){ out.push(ymd(addDays(d,i))); }
-  return out;
+function setDay(key, patch){ state.days[key]=Object.assign(getDay(key), patch); saveState(); }
+
+// ---------- Render raíz ----------
+const root = document.getElementById("root") || document.getElementById("app");
+let currentMonth = startOfMonth(new Date());
+renderApp();
+
+function renderApp(){
+  root.innerHTML = `
+    <div class="app" style="min-height:100vh;background:#0f172a;color:#e5e7eb;font-family:system-ui,sans-serif;">
+      ${renderTopBar()}
+      <div id="summary" class="summary" style="padding:6px 12px;border-bottom:1px solid #1f2937;display:none"></div>
+      <div id="monthView" class="month"></div>
+      <div id="dayView" class="day hidden"></div>
+      <div id="notesView" class="hidden"></div>
+      <div id="settingsModal" class="hidden"></div>
+      <div id="quickModal" class="hidden"></div>
+    </div>
+  `;
+  bindTopBar();
+  renderMonth();
+  if(state.lastSelected){ showSummary(state.lastSelected); }
 }
 
-/* ========= Componentes ========= */
-function App(){
-  const [store,setStore] = useStore();
-  const today = new Date();
-  const [cursor,setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const [selectedKey,setSelectedKey] = useState(null);
-  const [screen,setScreen] = useState('month'); // 'month' | 'day' | 'notes'
-  const [quickKey,setQuickKey] = useState(null);
-  const [showSettings,setShowSettings] = useState(false);
-  const [showLicense,setShowLicense] = useState(null); // { date:'YYYY-MM-DD' } | null
+// ---------- TopBar ----------
+function renderTopBar(){
+  return `
+  <header style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #1f2937;background:#0b1223;position:sticky;top:0;z-index:10">
+    <button id="prevBtn" class="btn" style="background:#1f2937;border:none;border-radius:10px;color:#e5e7eb;padding:8px 12px">◀</button>
+    <div id="monthTitle" style="text-transform:capitalize;font-weight:600;flex:1;text-align:center">${fmtMonth.format(currentMonth)}</div>
+    <button id="nextBtn" class="btn" style="background:#1f2937;border:none;border-radius:10px;color:#e5e7eb;padding:8px 12px">▶</button>
+    <button id="notesBtn" class="btn" style="background:#0284c7;border:none;border-radius:10px;color:#fff;padding:8px 12px">Notas</button>
+    <button id="settingsBtn" class="btn" style="background:#059669;border:none;border-radius:10px;color:#fff;padding:8px 12px">Ajustes</button>
+  </header>`;
+}
+function bindTopBar(){
+  $("#prevBtn").onclick = ()=>{ currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1, 1); $("#monthTitle").textContent = fmtMonth.format(currentMonth); renderMonth(); };
+  $("#nextBtn").onclick = ()=>{ currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1); $("#monthTitle").textContent = fmtMonth.format(currentMonth); renderMonth(); };
+  $("#notesBtn").onclick = ()=> alert("Notas (puedo activarte la pantalla si querés)");
+  $("#settingsBtn").onclick = openSettings;
+}
 
-  // Celdas del mes
-  const cells = useMemo(()=>{
-    const start = startOfMonth(cursor);
-    const startWeekDay = (start.getDay()+6)%7; // Lunes=0
-    const first = addDays(start,-startWeekDay);
-    return Array.from({length:42},(_,i)=> addDays(first,i));
-  },[cursor]);
+// ---------- Mes ----------
+function renderMonth(){
+  const monthEl = $("#monthView");
+  const start = startOfMonth(currentMonth);
+  const end = endOfMonth(currentMonth);
+  const startWeekDay = (start.getDay()+6)%7; // Lunes=0
+  const first = addDays(start, -startWeekDay);
+  const cells = Array.from({length:42}, (_,i)=>addDays(first,i));
 
-  // Patrón 24x48 (arranca guardia y luego 2 francos) según fecha de inicio (infinito)
-  const isPatternGuardia = useMemo(()=>{
-    const p=store.pattern; if(!p.enabled||!p.start) return ()=>false;
-    const anchor=parseYMD(p.start);
-    return d=>{ const diff = Math.floor((parseYMD(ymd(d)) - anchor)/86400000); return (diff%3===0); };
-  },[store.pattern]);
+  monthEl.innerHTML = `
+    <div class="grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:10px 10px 16px 10px">
+      ${["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(w=>`<div style="text-align:center;color:#94a3b8;font-size:12px">${w}</div>`).join("")}
+      ${cells.map(d=>renderMonthCell(d)).join("")}
+    </div>
+  `;
 
-  // Helpers day
-  function dayData(k){ return store.days[k] || emptyDay(k); }
-  function saveDay(k,patch){ setStore(s=> ({...s, days:{...s.days, [k]:{...dayData(k), ...patch}} })); }
+  // Gestos: tap (selección), doble tap (entrar), long-press (marcar)
+  $$("[data-day]").forEach(cell=>{
+    const date = new Date(cell.dataset.day);
+    let lastTap=0, hold=null;
 
-  // Estado exclusivo por día (con regla: pago XOR swap)
-  function setDayEstado(k, {estado=null, pago=false, swap=false, linkedDate="", linkedType="", quien=""}){
-    // En este diseño, 💲 y 🔄 no pueden coexistir:
-    if(pago && swap){ // fuerza regla
-      // preferimos lo último que el usuario marcó: si vino swap=true, pago=false
-      pago = false;
-    }
-    const d = dayData(k);
-    // auto espejo para swaps con fecha
-    if(swap && linkedDate){
-      const mirror = dayData(linkedDate);
-      let tipoEsp = "";
-      if(estado==='cubro_guardia') tipoEsp='me_cubre_guardia';
-      else if(estado==='me_cubre_guardia') tipoEsp='cubro_guardia';
-      else if(estado==='cubro_recargo') tipoEsp='me_cubre_recargo';
-      else if(estado==='me_cubre_recargo') tipoEsp='cubro_recargo';
+    cell.addEventListener("click", ()=>{
+      const now=Date.now();
+      if(now-lastTap<350){ openDay(date); }
+      else { selectDay(date); }
+      lastTap=now;
+    });
+
+    // Long press (0.55s)
+    cell.addEventListener("touchstart", ()=>{ hold=setTimeout(()=>{ openQuickModal(ymd(date)); }, 550); }, {passive:true});
+    ["touchend","touchcancel"].forEach(evt=> cell.addEventListener(evt, ()=>{ if(hold){clearTimeout(hold); hold=null;} }, {passive:true}));
+    // Context menu en desktop
+    cell.addEventListener("contextmenu", (e)=>{ e.preventDefault(); openQuickModal(ymd(date)); });
+  });
+}
+
+function renderMonthCell(date){
+  const inMonth = date.getMonth()===currentMonth.getMonth();
+  const k = ymd(date);
+  const info = getDay(k);
+  const colors = state.settings.colors;
+  const isToday = ymd(new Date())===k;
+
+  // Color de fondo según estado/patrón
+  let bg = inMonth ? "#111827" : "rgba(17,24,39,.35)";
+  if(isPatternGuardia(date) && !info.estado) bg = state.settings.colors.patternGuardiaBg;
+  if(info.estado){
+    const mapCol = {
+      guardia: colors.guardia, recargo: colors.recargo,
+      art: colors.art, licencia: colors.licencia,
+      cubro_guardia: colors.guardia, me_cubre_guardia: colors.guardia,
+      cubro_recargo: colors.recargo, me_cubre_recargo: colors.recargo
+    };
+    bg = mapCol[info.estado] || bg;
+  }
+  const outline = (state.lastSelected===k) ? `2px solid ${colors.selected}` : "none";
+  const ring = isToday ? `inset 0 0 0 2px ${colors.today}` : "none";
+
+  // Pills (solo iconos)
+  const pills = [];
+  if(info.estado){
+    const map = {
+      recargo:"R", cubro_guardia:"CG", me_cubre_guardia:"MG",
+      cubro_recargo:"CR", me_cubre_recargo:"MR", art:"ART", licencia:"LIC"
+    };
+    if(map[info.estado]) pills.push(map[info.estado]);
+  }
+  if(info.pago) pills.push("💲");
+  if(info.swap) pills.push("🔄");
+
+  return `
+  <button data-day="${k}" style="
+    aspect-ratio:1/1;border-radius:12px;padding:6px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;
+    background:${bg}; border:none; color:#e5e7eb; box-shadow:${ring}; outline:${outline};">
+    <div style="font-size:12px;opacity:.85">${date.getDate().toString().padStart(2,"0")}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;width:100%">
+      ${pills.map(p=>`<span style="font-size:10px;padding:2px 6px;border-radius:9999px;background:#1f2937">${p}</span>`).join("")}
+    </div>
+  </button>`;
+}
+
+function selectDay(d){
+  const k = ymd(d);
+  state.lastSelected = k; saveState();
+  showSummary(k);
+  renderMonth(); // para resaltar selección
+}
+
+function showSummary(k){
+  const s = $("#summary");
+  const d = getDay(k);
+  const base = [];
+  if(d.estado) base.push(d.estado.toUpperCase());
+  if(d.pabellon) base.push(`Pab: ${d.pabellon}`);
+  const P = d.poblacion||{};
+  if(P.total) base.push(`Pob: ${P.total}`);
+  if(P.condenados) base.push(`Cond: ${P.condenados}`);
+  if(P.procesados) base.push(`Proc: ${P.procesados}`);
+  if(d.companeros) base.push(`Comp: ${d.companeros}`);
+  s.textContent = `${k} — ${base.join(" · ")}`;
+  s.style.display = base.length ? "block" : "block";
+}
+
+// ---------- Día ----------
+function openDay(date){
+  const k = ymd(date);
+  state.lastSelected = k; saveState();
+  $("#monthView").classList.add("hidden");
+  $("#dayView").classList.remove("hidden");
+  renderDay(k);
+}
+
+function renderDay(k){
+  const d = getDay(k);
+  const DV = $("#dayView");
+  DV.innerHTML = `
+    <div style="display:flex;flex-direction:column;height:calc(100vh - 110px)">
+      <!-- Header fijo -->
+      <div style="position:sticky;top:48px;background:#0b1223;border-bottom:1px solid #1f2937;z-index:5;padding:10px 12px">
+        <div style="font-weight:600">${fmtDay.format(parseYMD(k))}</div>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button id="backMonth" class="btn" style="background:#1f2937;color:#e5e7eb;border:none;border-radius:10px;padding:6px 10px">← Mes</button>
+          <button id="tabGuardia" class="btn" style="background:#0284c7;color:#fff;border:none;border-radius:10px;padding:6px 10px">Guardia</button>
+          <button id="tabPoblacion" class="btn" style="background:#1f2937;color:#e5e7eb;border:none;border-radius:10px;padding:6px 10px">Población</button>
+        </div>
+      </div>
+
+      <!-- Contenido -->
+      <div id="tabsWrap" style="flex:1;overflow:auto;padding:10px 12px"></div>
+    </div>
+  `;
+
+  $("#backMonth").onclick = ()=>{ $("#dayView").classList.add("hidden"); $("#monthView").classList.remove("hidden"); };
+  $("#tabGuardia").onclick = ()=> renderTabGuardia(k);
+  $("#tabPoblacion").onclick = ()=> renderTabPoblacion(k);
+
+  // por defecto abre Guardia
+  renderTabGuardia(k);
+}
+
+function renderTabGuardia(k){
+  const d = getDay(k);
+  const wrap = $("#tabsWrap");
+  // header plegable (población)
+  const P = d.poblacion||{};
+  const mini = `Pab: ${d.pabellon||"-"} · Pob total: ${P.total||"-"} · Cond: ${P.condenados||"-"} · Proc: ${P.procesados||"-"}`;
+  wrap.innerHTML = `
+    <details open class="card" style="background:#111827;border:1px solid #1f2937;border-radius:12px;padding:10px;margin-bottom:12px">
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px">
+        <span style="font-weight:600">Datos de guardia</span>
+        <span class="badge" style="font-size:12px;color:#94a3b8">${mini}</span>
+      </summary>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+        ${field("Pabellón","pabellon",d.pabellon)}
+        ${field("Población total","p_total",P.total)}
+        ${field("Presentes","p_presentes",P.presentes)}
+        ${field("Condenados","p_condenados",P.condenados)}
+        ${field("Procesados","p_procesados",P.procesados)}
+        ${field("Hospitalizados","p_hosp",P.hospitalizados)}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px">
+        ${field("Rol (Celador/Auxiliar)","role",d.role)}
+        ${field("Acompañado por (coma)","companeros",d.companeros)}
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span>Notas</span>
+          <textarea id="f_notas" rows="3" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px">${d.notas||""}</textarea>
+        </label>
+      </div>
+    </details>
+
+    <div class="card" style="background:#111827;border:1px solid #1f2937;border-radius:12px;padding:10px">
+      <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+        <div style="font-weight:600">Novedades / Movimientos</div>
+        <button id="addMov" class="btn" style="background:#059669;border:none;border-radius:10px;color:#fff;padding:6px 10px">Agregar fila</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr 1fr 1fr;gap:6px;margin-top:8px;font-size:12px;color:#94a3b8">
+        <div>Objeto</div><div>Entrada</div><div>Salida</div><div>Movimiento</div><div>A cargo de</div>
+      </div>
+      <div id="movBody" style="max-height:35vh;overflow:auto;margin-top:6px"></div>
+    </div>
+  `;
+
+  // Bind inputs básicos
+  bindInput("#f_pabellon", v=> setDay(k,{pabellon:v}));
+  bindInput("#f_p_total", v=> setDay(k,{poblacion:{...P, total:v}}));
+  bindInput("#f_p_presentes", v=> setDay(k,{poblacion:{...P, presentes:v}}));
+  bindInput("#f_p_condenados", v=> setDay(k,{poblacion:{...P, condenados:v}}));
+  bindInput("#f_p_procesados", v=> setDay(k,{poblacion:{...P, procesados:v}}));
+  bindInput("#f_p_hosp", v=> setDay(k,{poblacion:{...P, hospitalizados:v}}));
+  bindInput("#f_role", v=> setDay(k,{role:v}));
+  bindInput("#f_companeros", v=> setDay(k,{companeros:v}));
+  $("#f_notas").oninput = (e)=> setDay(k,{notas:e.target.value});
+
+  // Movimientos
+  renderMovimientos(k);
+  $("#addMov").onclick = ()=> {
+    const arr = getDay(k).movimientos;
+    arr.push({objeto:"", entrada:suggestHour(), salida:"", movimiento:"", a_cargo:""});
+    setDay(k,{movimientos:arr}); renderMovimientos(k);
+  };
+}
+
+function field(label,id,value){
+  return `
+  <label style="display:flex;flex-direction:column;gap:6px">
+    <span>${label}</span>
+    <input id="f_${id}" value="${value??""}" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+  </label>`;
+}
+function bindInput(sel, fn){ const el=$(sel); if(el) el.oninput=(e)=>fn(e.target.value); }
+
+function renderMovimientos(k){
+  const body = $("#movBody");
+  const arr = getDay(k).movimientos;
+  body.innerHTML = arr.map((r,i)=> movRow(k,i,r)).join("");
+  // bind eventos de cada fila
+  arr.forEach((_,i)=> bindMovRow(k,i));
+}
+function movRow(k,i,r){
+  return `
+  <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr 1fr 1fr;gap:6px;margin-bottom:6px">
+    ${autoInput(`m_obj_${i}`, r.objeto, "Objeto")}
+    <input id="m_in_${i}" value="${r.entrada||""}" placeholder="hh:mm" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+    <input id="m_out_${i}" value="${r.salida||""}" placeholder="hh:mm" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+    <input id="m_mov_${i}" value="${r.movimiento||""}" placeholder="Detalle" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+    <div style="display:flex;gap:6px">
+      <input id="m_cargo_${i}" value="${r.a_cargo||""}" placeholder="Apellido" style="flex:1;background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+      <button id="m_del_${i}" class="btn" style="background:#ef4444;border:none;border-radius:10px;color:#fff;padding:6px 10px">✕</button>
+    </div>
+  </div>`;
+}
+function bindMovRow(k,i){
+  const d = getDay(k);
+  const arr = d.movimientos;
+
+  // Autocomplete objeto
+  bindAutocomplete(`#m_obj_${i}`, val=>{
+    arr[i].objeto = val;
+    // guardar nuevas sugerencias
+    if(val && !state.autoObj.includes(val)) state.autoObj.push(val), saveState();
+    setDay(k,{movimientos:arr});
+  });
+
+  $("#m_in_"+i).onfocus = e=>{ if(!e.target.value) e.target.value = suggestHour(); };
+  $("#m_in_"+i).oninput = e=>{ arr[i].entrada = e.target.value; setDay(k,{movimientos:arr}); };
+  $("#m_out_"+i).oninput = e=>{ arr[i].salida = e.target.value; setDay(k,{movimientos:arr}); };
+  $("#m_mov_"+i).oninput = e=>{ arr[i].movimiento = e.target.value; setDay(k,{movimientos:arr}); };
+  $("#m_cargo_"+i).oninput = e=>{ arr[i].a_cargo = e.target.value; setDay(k,{movimientos:arr}); };
+  $("#m_del_"+i).onclick = ()=>{ arr.splice(i,1); setDay(k,{movimientos:arr}); renderMovimientos(k); };
+}
+function autoInput(id, value, ph){
+  // caja con lista flotante
+  return `
+  <div style="position:relative">
+    <input id="${id}" value="${value||""}" placeholder="${ph||""}"
+      style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px;width:100%"/>
+    <div id="${id}_list" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0b1320;border:1px solid #1f2937;border-radius:8px;max-height:200px;overflow:auto;z-index:20"></div>
+  </div>`;
+}
+function bindAutocomplete(sel, onPick){
+  const input = $(sel), list = $(sel+"_list");
+  input.oninput = ()=>{
+    const v = input.value.toLowerCase();
+    if(!v){ list.style.display="none"; return; }
+    const items = state.autoObj.filter(s=> s.toLowerCase().includes(v));
+    list.innerHTML = items.map(s=>`<div data-val="${s}" style="padding:8px;cursor:pointer">${s}</div>`).join("");
+    list.style.display = items.length ? "block" : "none";
+    list.onclick = (e)=>{ const val=e.target.dataset.val; if(val){ input.value=val; list.style.display="none"; onPick(val); } };
+  };
+  input.onchange = ()=> onPick(input.value);
+}
+
+function suggestHour(){
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  return `${hh}:${mm}`;
+}
+
+// --- Población
+function renderTabPoblacion(k){
+  const d = getDay(k);
+  const wrap = $("#tabsWrap");
+  wrap.innerHTML = `
+    <div class="card" style="background:#111827;border:1px solid #1f2937;border-radius:12px;padding:10px">
+      <div style="display:grid;grid-template-columns:0.9fr 0.6fr 1.6fr;gap:6px;margin-bottom:8px;font-size:12px;color:#94a3b8">
+        <div>Matrícula</div><div>C/P</div><div>Apellido y Nombre</div>
+      </div>
+      <div id="pobBody"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button id="addPob" class="btn" style="background:#059669;border:none;border-radius:10px;color:#fff;padding:6px 10px">Agregar fila</button>
+      </div>
+      <div id="pobWarn" style="margin-top:8px;color:#f59e0b;display:none"></div>
+    </div>
+  `;
+  renderPoblacion(k);
+  $("#addPob").onclick = ()=>{ const arr=getDay(k).poblacionListado; arr.push({matricula:"", cp:"", nombre:""}); setDay(k,{poblacionListado:arr}); renderPoblacion(k); };
+}
+function renderPoblacion(k){
+  const body = $("#pobBody");
+  const d = getDay(k);
+  const arr = d.poblacionListado;
+  body.innerHTML = arr.map((r,i)=>`
+    <div style="display:grid;grid-template-columns:0.9fr 0.6fr 1.6fr;gap:6px;margin-bottom:6px">
+      <input id="pb_m_${i}" value="${r.matricula||""}" placeholder="000123" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+      <input id="pb_cp_${i}" value="${r.cp||""}" placeholder="C o P" maxlength="1" style="text-transform:uppercase;background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+      <div style="display:flex;gap:6px">
+        <input id="pb_n_${i}" value="${r.nombre||""}" placeholder="Apellido, Nombre" style="flex:1;background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+        <button id="pb_del_${i}" class="btn" style="background:#ef4444;border:none;border-radius:10px;color:#fff;padding:6px 10px">✕</button>
+      </div>
+    </div>
+  `).join("");
+
+  arr.forEach((_,i)=>{
+    $("#pb_m_"+i).oninput = e=>{ arr[i].matricula=e.target.value; setDay(k,{poblacionListado:arr}); };
+    $("#pb_cp_"+i).oninput = e=>{ arr[i].cp=(e.target.value||"").toUpperCase(); setDay(k,{poblacionListado:arr}); checkPoblacionCounts(k); };
+    $("#pb_n_"+i).oninput = e=>{ arr[i].nombre=e.target.value; setDay(k,{poblacionListado:arr}); };
+    $("#pb_del_"+i).onclick = ()=>{ arr.splice(i,1); setDay(k,{poblacionListado:arr}); renderPoblacion(k); checkPoblacionCounts(k); };
+  });
+
+  checkPoblacionCounts(k);
+}
+function checkPoblacionCounts(k){
+  const d = getDay(k);
+  const P = d.poblacion||{};
+  const arr = d.poblacionListado;
+  const cond = arr.filter(x=>x.cp==="C").length;
+  const proc = arr.filter(x=>x.cp==="P").length;
+  const warn = $("#pobWarn");
+  let msgs = [];
+  if(P.condenados && Number(P.condenados)!==cond) msgs.push(`Condenados listados (${cond}) ≠ ${P.condenados}`);
+  if(P.procesados && Number(P.procesados)!==proc) msgs.push(`Procesados listados (${proc}) ≠ ${P.procesados}`);
+  warn.textContent = msgs.join(" · ");
+  warn.style.display = msgs.length? "block": "none";
+}
+
+// ---------- Quick Modal (estado del día) ----------
+function openQuickModal(k){
+  const d = getDay(k);
+  const Q = $("#quickModal");
+  Q.classList.remove("hidden");
+  Q.innerHTML = `
+    <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px" onclick="this.innerHTML='';this.classList.add('hidden')">
+      <div class="modal-card" style="background:#0b1220;border:1px solid #1f2937;border-radius:16px;color:#e5e7eb;padding:14px;max-width:480px;width:100%" onclick="event.stopPropagation()">
+        <div style="font-size:13px;opacity:.8;margin-bottom:8px">${k}</div>
+        <div style="display:grid;gap:8px">
+          ${selectEstado(d.estado)}
+          ${d.estado && !["recargo","art","licencia"].includes(d.estado) ? `<input id="q_quien" value="${d.quien||""}" placeholder="Apellido/Nombre" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>` : ""}
+          <div style="display:flex;gap:12px;align-items:center">
+            <label style="display:flex;gap:6px;align-items:center"><input id="q_pago" type="checkbox" ${d.pago&& !d.swap?"checked":""}/> 💲</label>
+            <label style="display:flex;gap:6px;align-items:center"><input id="q_swap" type="checkbox" ${d.swap&& !d.pago?"checked":""}/> 🔄</label>
+            <input id="q_link" type="date" value="${d.linkedDate||""}" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px;${d.swap?'':'display:none'}"/>
+          </div>
+
+          <!-- Licencia: rango -->
+          <div id="licBox" style="${d.estado==='licencia'?'':'display:none'};border-top:1px solid #1f2937;padding-top:8px">
+            <div style="display:grid;gap:8px">
+              <label style="display:flex;gap:6px;align-items:center">Hasta (fecha): <input id="lic_hasta" type="date" value="${d.licenciaHasta||""}" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:6px"/></label>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <input id="lic_corr" type="number" min="0" placeholder="Días corridos" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:6px"/>
+                <input id="lic_hab" type="number" min="0" placeholder="Días hábiles" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:6px"/>
+                <label style="display:flex;gap:6px;align-items:center"><input id="lic_excl_fer" type="checkbox"/> Excluir feriados</label>
+              </div>
+              <div style="font-size:12px;color:#94a3b8">Usá "Hasta" o calculá con corridos/hábiles (desde ${k}). Si marcás hábiles y “Excluir feriados”, no contará sáb-dom ni fechas en Ajustes → Feriados.</div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+            <button id="q_cancel" class="btn" style="background:#1f2937;color:#e5e7eb;border:none;border-radius:10px;padding:6px 10px">Cancelar</button>
+            <button id="q_ok" class="btn" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:6px 10px">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // lógica de UI
+  const tipoSel = $("#q_tipo");
+  tipoSel.onchange = ()=>{
+    const v = tipoSel.value;
+    $("#licBox").style.display = (v==="licencia") ? "block":"none";
+    $("#q_quien") && ($("#q_quien").parentElement.style.display = ["recargo","art","licencia"].includes(v) ? "none":"block");
+  };
+
+  const pago = $("#q_pago"), swap=$("#q_swap");
+  pago.onchange = ()=>{ if(pago.checked) swap.checked=false; };
+  swap.onchange = ()=>{ if(swap.checked) pago.checked=false; $("#q_link").style.display = swap.checked? "inline-block":"none"; };
+
+  $("#q_cancel").onclick = ()=>{ Q.classList.add("hidden"); Q.innerHTML=""; };
+  $("#q_ok").onclick = ()=>{
+    // guardar
+    const estado = $("#q_tipo").value || null;
+    const quien = $("#q_quien") ? $("#q_quien").value : "";
+    const isPago = pago.checked, isSwap = swap.checked && !isPago;
+    const link = $("#q_link") ? $("#q_link").value : "";
+
+    // espejo si swap
+    if(isSwap && link){
+      const tipoEsp = mirrorType(estado);
       if(tipoEsp){
-        saveDay(linkedDate, { estado: tipoEsp, pago, swap:true, linkedDate:k, linkedType:estado });
+        const od = getDay(link);
+        Object.assign(od, { estado: tipoEsp, pago:isPago, swap:true, linkedDate:k, linkedType:estado });
+        saveState();
       }
     }
-    saveDay(k,{ estado, pago, swap, linkedDate, linkedType });
-  }
 
-  // Abrir/entrar a día
-  const lastTapRef = useRef(0);
-  function onTapDay(d){
-    // 1 tap: seleccionar; doble tap: abrir
-    const t=Date.now();
-    if(t - lastTapRef.current < 350){ openDay(d); }
-    else { setSelectedKey(ymd(d)); }
-    lastTapRef.current = t;
-  }
-  function openDay(d){ const k=ymd(d); setSelectedKey(k); setScreen('day'); }
+    // Licencia por rango
+    if(estado==="licencia"){
+      const hasta = $("#lic_hasta").value;
+      const corr = Number($("#lic_corr").value||0);
+      const hab = Number($("#lic_hab").value||0);
+      const exclF = $("#lic_excl_fer").checked;
+      aplicarLicenciaRango(k, {hasta,corr,hab,exclF});
+    }
 
-  // Swipe para cambiar a Población dentro del día
-  const swipeStartX = useRef(null);
-  function attachSwipe(el, onRight){ if(!el) return;
-    el.addEventListener('touchstart', e=>{ swipeStartX.current = e.touches[0].clientX; }, {passive:true});
-    el.addEventListener('touchend', e=>{
-      if(swipeStartX.current==null) return;
-      const dx = e.changedTouches[0].clientX - swipeStartX.current;
-      if(dx > 60) onRight?.();
-      swipeStartX.current=null;
-    }, {passive:true});
-  }
-
-  // Resumen del día seleccionado para mostrar arriba del calendario
-  const summary = useMemo(()=>{
-    if(!selectedKey) return null;
-    const d = dayData(selectedKey);
-    const base = [];
-    if(d.estado) base.push(d.estado.toUpperCase());
-    if(d.pabellon) base.push(`Pab: ${d.pabellon}`);
-    const P=d.poblacion||{};
-    if(P.total) base.push(`Pob: ${P.total}`);
-    if(P.condenados) base.push(`Cond: ${P.condenados}`);
-    if(P.procesados) base.push(`Proc: ${P.procesados}`);
-    if(d.companeros) base.push(`Comp: ${d.companeros}`);
-    return base.join(" · ");
-  },[selectedKey, store.days]);
-
-  return (
-    <div className="h-full flex flex-col">
-      <TopBar
-        screen={screen} cursor={cursor}
-        onPrev={()=> setCursor(d=> new Date(d.getFullYear(), d.getMonth()-1,1))}
-        onNext={()=> setCursor(d=> new Date(d.getFullYear(), d.getMonth()+1,1))}
-        onBack={()=> setScreen('month')}
-        onSettings={()=> setShowSettings(true)}
-        onNotes={()=> setScreen('notes')}
-      />
-
-      {screen==='month' && (
-        <>
-          {selectedKey && summary && (
-            <div className="px-3 pt-2">
-              <div className="bg-slate-800/70 border border-slate-700 rounded-xl px-3 py-2 text-sm">{selectedKey} — {summary}</div>
-            </div>
-          )}
-          <MonthGrid
-            cells={cells}
-            cursor={cursor}
-            selectedKey={selectedKey}
-            onTap={onTapDay}
-            onOpen={openDay}
-            isPattern={d=> isPatternGuardia(d)}
-            colors={store.colors}
-            getDay={k=>dayData(k)}
-            onLong={(d)=> setQuickKey(ymd(d))}
-          />
-        </>
-      )}
-
-      {screen==='day' && selectedKey && (
-        <DayScreen
-          ymdKey={selectedKey}
-          data={dayData(selectedKey)}
-          setData={(patch)=> saveDay(selectedKey, patch)}
-          setEstado={(payload)=> setDayEstado(selectedKey, payload)}
-          colors={store.colors}
-          attachSwipe={attachSwipe}
-        />
-      )}
-
-      {screen==='notes' && (
-        <NotesScreen store={store} setStore={setStore}/>
-      )}
-
-      {quickKey && (
-        <QuickModal
-          ymdKey={quickKey}
-          data={dayData(quickKey)}
-          colors={store.colors}
-          onClose={()=>setQuickKey(null)}
-          onPick={(payload)=>{ setQuickKey(null); setDayEstado(quickKey, payload); }}
-          onOpenLicencia={()=>{ setQuickKey(null); setShowLicense({date:quickKey}); }}
-        />
-      )}
-
-      {showSettings && (
-        <SettingsModal
-          store={store}
-          onClose={()=>setShowSettings(false)}
-          onSave={setStore}
-        />
-      )}
-
-      {showLicense && (
-        <LicenseModal
-          date={showLicense.date}
-          holidays={new Set(store.holidays)}
-          onClose={()=>setShowLicense(null)}
-          onApply={({mode, until, corridos, habiles, excluirFeriados})=>{
-            // Aplica licencia al rango calculado
-            let keys=[];
-            if(mode==='rango' && until){
-              keys = expandLicenseByDates(showLicense.date, until);
-            }else{
-              if(corridos>0) keys = keys.concat(expandLicenseByCalendarDays(showLicense.date, Number(corridos)));
-              if(habiles>0){
-                const add = expandLicenseByWorkingDays(showLicense.date, Number(habiles), new Set(excluirFeriados? store.holidays: []), true);
-                keys = keys.concat(add);
-              }
-            }
-            // Marcar todas como licencia
-            const patchDays={...store.days};
-            keys.forEach(k=>{ patchDays[k] = {...(patchDays[k]||emptyDay(k)), estado:'licencia', pago:false, swap:false, linkedDate:"", linkedType:""}; });
-            setStore(s=> ({...s, days: patchDays}));
-            setShowLicense(null);
-          }}
-        />
-      )}
-    </div>
-  );
+    const item = getDay(k);
+    Object.assign(item, { estado, quien, pago:isPago, swap:isSwap, linkedDate:link, linkedType:estado, licenciaHasta: (estado==='licencia' ? ($("#lic_hasta").value||"") : "") });
+    saveState();
+    $("#quickModal").classList.add("hidden"); $("#quickModal").innerHTML="";
+    renderMonth(); showSummary(k);
+  };
 }
 
-/* ===== Topbar ===== */
-function TopBar({screen,cursor,onPrev,onNext,onBack,onSettings,onNotes}){
-  return (
-    <header className="px-3 py-2 bg-slate-950 border-b border-slate-800 flex items-center gap-2">
-      {screen!=='month'
-        ? <button onClick={onBack} className="btn bg-slate-800">←</button>
-        : <button onClick={onPrev} className="btn bg-slate-800">◀</button>}
-      <div className="text-lg font-medium flex-1 text-center select-none capitalize">{fmtMonth.format(cursor)}</div>
-      {screen==='month'
-        ? <button onClick={onNext} className="btn bg-slate-800">▶</button>
-        : <div className="w-[40px]"/>}
-      <button onClick={onNotes} className="btn bg-sky-600">Notas</button>
-      <button onClick={onSettings} className="btn bg-emerald-600">Ajustes</button>
-    </header>
-  );
+function selectEstado(actual){
+  // incluye ART y LICENCIA en las opciones exclusivas
+  const opts = [
+    ["","(sin estado)"],
+    ["recargo","Recargo"],
+    ["cubro_guardia","Cubro guardia a…"],
+    ["me_cubre_guardia","Me cubre guardia…"],
+    ["cubro_recargo","Cubro recargo a…"],
+    ["me_cubre_recargo","Me cubre recargo…"],
+    ["art","ART Nº"],
+    ["licencia","Licencia"]
+  ];
+  return `
+  <label style="display:flex;flex-direction:column;gap:6px">
+    <span>Estado del día</span>
+    <select id="q_tipo" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px">
+      ${opts.map(([v,t])=>`<option value="${v}" ${v===actual?"selected":""}>${t}</option>`).join("")}
+    </select>
+  </label>`;
+}
+function mirrorType(t){
+  if(t==='cubro_guardia') return 'me_cubre_guardia';
+  if(t==='me_cubre_guardia') return 'cubro_guardia';
+  if(t==='cubro_recargo') return 'me_cubre_recargo';
+  if(t==='me_cubre_recargo') return 'cubro_recargo';
+  return null;
 }
 
-/* ===== Calendario (mes) ===== */
-function MonthGrid({cells,cursor,selectedKey,onTap,onOpen,isPattern,colors,getDay,onLong}){
-  const todayKey = ymd(new Date());
-  const weekdays = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-  return (
-    <div className="flex-1 overflow-y-auto px-2 pb-2">
-      <div className="grid grid-cols-7 text-center text-xs text-slate-400 mb-1 select-none">
-        {weekdays.map(w=> <div key={w} className="py-1">{w}</div>)}
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((d,i)=>{
-          const inMonth = d.getMonth()===cursor.getMonth();
-          const k = ymd(d);
-          const info = getDay(k);
-          const pattern = isPattern(d);
-          const isToday = todayKey===k;
-          const isSel = selectedKey===k;
-          return (
-            <MonthCell key={i}
-              date={d}
-              inMonth={inMonth}
-              info={info}
-              pattern={pattern}
-              isToday={isToday}
-              isSel={isSel}
-              colors={colors}
-              onTap={()=>onTap(d)}
-              onOpen={()=>onOpen(d)}
-              onLong={()=>onLong?.(d)}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+function aplicarLicenciaRango(desdeKey, {hasta,corr,hab,exclF}){
+  const desde = parseYMD(desdeKey);
+  let fechas = [];
 
-function MonthCell({date,inMonth,info,pattern,isToday,isSel,colors,onTap,onOpen,onLong}){
-  // Gestos: tap, double tap (se maneja en App), long press (aquí)
-  const holdRef = useRef(null);
-  const onTouchStart = ()=>{ holdRef.current = setTimeout(()=> onLong?.(), 550); };
-  const onTouchEnd = ()=>{ if(holdRef.current){ clearTimeout(holdRef.current); holdRef.current=null; } };
-
-  // Colores
-  let bg = inMonth? 'bg-slate-800' : 'bg-slate-800/30';
-  if(pattern && !info?.estado) bg += ' pattern-bg';
-  let style = {};
-  if(pattern && !info?.estado){ style.background = colors.patternGuardiaBg; }
-  if(info?.estado){
-    const mapCol = {
-      guardia: colors.guardia,
-      recargo: colors.recargo,
-      art: colors.art,
-      licencia: colors.licencia,
-      cubro_guardia: colors.guardia,
-      me_cubre_guardia: colors.guardia,
-      cubro_recargo: colors.recargo,
-      me_cubre_recargo: colors.recargo
-    };
-    style.background = mapCol[info.estado] || 'transparent';
+  if(hasta){
+    let d = new Date(desde);
+    const end = parseYMD(hasta);
+    while(d <= end){ fechas.push(ymd(d)); d = addDays(d,1); }
+  }else{
+    // corridos primero
+    let d = new Date(desde);
+    for(let i=0;i<corr;i++){ fechas.push(ymd(d)); d=addDays(d,1); }
+    // hábiles
+    const feriados = new Set(state.settings.feriados || []);
+    for(let i=0,c=0;c<hab;i++){
+      const key = ymd(d);
+      const isWeekend = [0,6].includes(d.getDay());
+      const isHoliday = feriados.has(key);
+      if(!(exclF && (isWeekend || isHoliday))){ fechas.push(key); c++; }
+      d = addDays(d,1);
+    }
   }
-  if(isSel){ style.outline = `2px solid ${colors.selected}`; }
-  if(isToday){ style.boxShadow = `inset 0 0 0 2px ${colors.today}`; }
-
-  return (
-    <button
-      onClick={onTap}
-      onDoubleClick={onOpen}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      onContextMenu={(e)=>{ e.preventDefault(); onLong?.(); }}
-      className={`aspect-square rounded-xl p-1 flex flex-col items-start justify-between ${bg}`}
-      style={style}
-    >
-      <div className="text-[11px] opacity-90">{fmtDay.format(date)}</div>
-      <div className="w-full flex gap-1 flex-wrap justify-end">
-        {info?.pago && <span className="badge">💲</span>}
-        {info?.swap && <span className="badge">🔄</span>}
-      </div>
-    </button>
-  );
+  // asignar
+  fechas.forEach(fk=>{
+    const dd = getDay(fk);
+    Object.assign(dd, { estado:"licencia", pago:false, swap:false, quien:"", linkedDate:"", linkedType:"" });
+  });
+  saveState();
 }
 
-/* ===== Quick modal (long press) ===== */
-function QuickModal({ymdKey,data,colors,onClose,onPick,onOpenLicencia}){
-  // Un solo estado por día + pago XOR swap
-  const [estado,setEstado]=useState(data.estado||"");
-  const [pago,setPago]=useState(!!data.pago);
-  const [swap,setSwap]=useState(!!data.swap);
-  const [linked,setLinked]=useState(data.linkedDate||"");
+// ---------- Ajustes ----------
+function openSettings(){
+  const S = $("#settingsModal");
+  const st = state.settings;
+  S.classList.remove("hidden");
+  S.innerHTML = `
+    <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px" onclick="this.innerHTML='';this.classList.add('hidden')">
+      <div class="modal-card" style="background:#0b1220;border:1px solid #1f2937;border-radius:16px;color:#e5e7eb;padding:16px;max-width:560px;width:100%" onclick="event.stopPropagation()">
+        <div style="font-weight:600;margin-bottom:8px">Ajustes</div>
 
-  useEffect(()=>{ if(pago && swap){ setPago(false); } },[pago,swap]);
-
-  function go(){
-    if(estado==='licencia'){ onOpenLicencia(); return; }
-    onPick({estado: estado||null, pago, swap, linkedDate: swap? linked:"", linkedType:""});
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={e=>e.stopPropagation()}>
-        <div className="text-sm opacity-80 mb-2">{ymdKey}</div>
-        <div className="grid gap-2">
-          <select value={estado} onChange={e=>setEstado(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-2">
-            <option value="">(sin estado)</option>
-            <option value="guardia">Guardia</option>
-            <option value="recargo">Recargo</option>
-            <option value="cubro_guardia">Cubro guardia a…</option>
-            <option value="me_cubre_guardia">Me cubre guardia…</option>
-            <option value="cubro_recargo">Cubro recargo a…</option>
-            <option value="me_cubre_recargo">Me cubre recargo…</option>
-            <option value="art">ART Nº…</option>
-            <option value="licencia">Licencia…</option>
-          </select>
-          {estado && estado!=='recargo' && estado!=='guardia' && estado!=='art' && estado!=='licencia' && (
-            <input placeholder="Apellido/Nombre" className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-          )}
-          {/* Pago XOR swap */}
-          <label className="text-sm flex items-center gap-2">
-            <input type="checkbox" checked={pago} onChange={e=>{ setPago(e.target.checked); if(e.target.checked) setSwap(false); }}/> 💲
-          </label>
-          <label className="text-sm flex items-center gap-2">
-            <input type="checkbox" checked={swap} onChange={e=>{ setSwap(e.target.checked); if(e.target.checked) setPago(false); }}/> 🔄
-          </label>
-          {swap && (
-            <input type="date" value={linked} onChange={e=>setLinked(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-          )}
-        </div>
-        <div className="mt-3 flex justify-end gap-2">
-          <button className="btn bg-slate-700" onClick={onClose}>Cancelar</button>
-          <button className="btn bg-emerald-600" onClick={go}>{estado==='licencia'?'Licencia…':'Guardar'}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ===== Modal Licencia ===== */
-function LicenseModal({date,holidays,onClose,onApply}){
-  const [mode,setMode]=useState('rango'); // 'rango' | 'calculo'
-  const [hasta,setHasta]=useState("");
-  const [corridos,setCorridos]=useState("");
-  const [habiles,setHabiles]=useState("");
-  const [excluirFeriados,setExcluirFeriados]=useState(true);
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={e=>e.stopPropagation()}>
-        <div className="text-sm mb-2">Licencia desde <strong>{date}</strong></div>
-        <div className="mb-2">
-          <label className="mr-3"><input type="radio" name="m" checked={mode==='rango'} onChange={()=>setMode('rango')}/> Por rango</label>
-          <label><input type="radio" name="m" checked={mode==='calculo'} onChange={()=>setMode('calculo')}/> Por días</label>
-        </div>
-        {mode==='rango' ? (
-          <div className="grid gap-2">
-            <label>Hasta: <input type="date" value={hasta} onChange={e=>setHasta(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
+        <div class="card" style="background:#111827;border:1px solid #1f2937;border-radius:12px;padding:10px;margin-bottom:12px">
+          <div style="font-weight:600;margin-bottom:8px">Patrón 24×48</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <label style="display:flex;flex-direction:column;gap:6px">
+              <span>Inicio (día de Guardia)</span>
+              <input id="s_start" type="date" value="${st.patternStart||""}" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:6px">
+              <span>Turno</span>
+              <select id="s_turno" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px">
+                <option ${st.turno==="A"?"selected":""}>A</option>
+                <option ${st.turno==="B"?"selected":""}>B</option>
+                <option ${st.turno==="C"?"selected":""}>C</option>
+              </select>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:6px">
+              <span>Patrón</span>
+              <select id="s_enabled" style="background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px">
+                <option value="true" ${st.patternEnabled?"selected":""}>ON</option>
+                <option value="false" ${!st.patternEnabled?"selected":""}>OFF</option>
+              </select>
+            </label>
           </div>
-        ) : (
-          <div className="grid gap-2">
-            <label>Días corridos: <input type="number" min="0" value={corridos} onChange={e=>setCorridos(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
-            <label>Días hábiles: <input type="number" min="0" value={habiles} onChange={e=>setHabiles(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
-            <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={excluirFeriados} onChange={e=>setExcluirFeriados(e.target.checked)}/> Excluir feriados</label>
+          <div style="font-size:12px;color:#94a3b8;margin-top:6px">El inicio marca Guardia y luego 2 francos, repetido sin fin.</div>
+        </div>
+
+        <div class="card" style="background:#111827;border:1px solid #1f2937;border-radius:12px;padding:10px;margin-bottom:12px">
+          <div style="font-weight:600;margin-bottom:8px">Colores (evitar duplicados)</div>
+          ${colorField("Días patrón (sin estado)", "patternGuardiaBg", st.colors.patternGuardiaBg)}
+          ${colorField("Seleccionado", "selected", st.colors.selected)}
+          ${colorField("Hoy", "today", st.colors.today)}
+          ${colorField("Guardia/CG/MG", "guardia", st.colors.guardia)}
+          ${colorField("Recargo/CR/MR", "recargo", st.colors.recargo)}
+          ${colorField("ART", "art", st.colors.art)}
+          ${colorField("Licencia", "licencia", st.colors.licencia)}
+        </div>
+
+        <div class="card" style="background:#111827;border:1px solid #1f2937;border-radius:12px;padding:10px;margin-bottom:12px">
+          <div style="font-weight:600;margin-bottom:8px">Feriados (YYYY-MM-DD)</div>
+          <div id="ferWrap"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="ferNew" placeholder="2025-12-08" style="flex:1;background:#0b1320;border:1px solid #1f2937;color:#e5e7eb;border-radius:8px;padding:8px"/>
+            <button id="ferAdd" class="btn" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:6px 10px">Agregar</button>
           </div>
-        )}
-        <div className="mt-3 flex justify-end gap-2">
-          <button className="btn bg-slate-700" onClick={onClose}>Cancelar</button>
-          <button className="btn bg-emerald-600" onClick={()=> onApply({mode, until:hasta, corridos, habiles, excluirFeriados})}>Aplicar</button>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button id="s_close" class="btn" style="background:#1f2937;color:#e5e7eb;border:none;border-radius:10px;padding:6px 10px">Cerrar</button>
+          <button id="s_save" class="btn" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:6px 10px">Guardar</button>
         </div>
       </div>
     </div>
-  );
+  `;
+
+  renderFeriadosList();
+
+  $("#ferAdd").onclick = ()=>{
+    const v = $("#ferNew").value.trim();
+    if(v && !state.settings.feriados.includes(v)){ state.settings.feriados.push(v); saveState(); renderFeriadosList(); $("#ferNew").value=""; }
+  };
+
+  $("#s_close").onclick = ()=>{ S.classList.add("hidden"); S.innerHTML=""; };
+  $("#s_save").onclick = ()=>{
+    const start = $("#s_start").value;
+    const turno = $("#s_turno").value;
+    const enabled = $("#s_enabled").value==="true";
+
+    // Colores no repetidos (simple check)
+    const c = {};
+    $$("#settingsModal input[type=color]").forEach(el=>{
+      if(Object.values(c).includes(el.value)){ alert("Elegí colores distintos."); return; }
+      c[el.dataset.key]=el.value;
+    });
+
+    Object.assign(state.settings, {
+      patternStart: start, turno, patternEnabled: enabled, colors: {...state.settings.colors, ...c}
+    });
+    saveState();
+    $("#settingsModal").classList.add("hidden"); $("#settingsModal").innerHTML="";
+    $("#monthTitle").textContent = fmtMonth.format(currentMonth);
+    renderMonth();
+  };
 }
-
-/* ===== Vista del Día ===== */
-function DayScreen({ymdKey,data,setData,setEstado,colors,attachSwipe}){
-  const [tab,setTab]=useState("guardia"); // guardia | poblacion
-  const wrapRef = useRef(null);
-  useEffect(()=> setTab("guardia"), [ymdKey]);
-  useEffect(()=> attachSwipe(wrapRef.current, ()=> setTab(t=> t==='guardia'?'poblacion':'poblacion')), [wrapRef.current]);
-
-  const P = data.poblacion||{};
-  const collapsedSummary = [`Pab: ${data.pabellon||'-'}`, `Pob: ${P.total||'-'}`, `Cond: ${P.condenados||'-'}`, `Proc: ${P.procesados||'-'}`].join(' · ');
-
-  return (
-    <div className="flex-1 flex flex-col h-full swipe-zone" ref={wrapRef}>
-      {/* Header fijo */}
-      <div className="px-3 py-2 border-b border-slate-800 bg-slate-950 sticky top-0 z-10">
-        <div className="text-base">{fmtFull.format(parseYMD(ymdKey))}</div>
-      </div>
-
-      <div className="flex gap-2 px-3 py-2">
-        <button onClick={()=>setTab('guardia')} className={`px-4 py-2 rounded-full text-base ${tab==='guardia'?'bg-sky-600':'bg-slate-800'}`}>Guardia</button>
-        <button onClick={()=>setTab('poblacion')} className={`px-4 py-2 rounded-full text-base ${tab==='poblacion'?'bg-sky-600':'bg-slate-800'}`}>Población</button>
-      </div>
-
-      <div className="px-3">
-        <DetailsPanel
-          collapsedText={collapsedSummary}
-          body={<GuardHeader data={data} setData={setData}/>}
-        />
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-3">
-        {tab==='guardia'
-          ? <MovimientosTable data={data} setData={setData}/>
-          : <PoblacionTable data={data} setData={setData}/>
-        }
-      </div>
+function colorField(label,key,val){
+  return `
+  <label style="display:flex;align-items:center;gap:10px;margin:6px 0">
+    <span style="width:220px">${label}</span>
+    <input type="color" data-key="${key}" value="${val}" />
+    <span style="font-size:12px;color:#94a3b8">${val}</span>
+  </label>`;
+}
+function renderFeriadosList(){
+  const wrap = $("#ferWrap");
+  wrap.innerHTML = (state.settings.feriados||[]).map((f,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+      <div style="flex:1">${f}</div>
+      <button data-del="${i}" class="btn" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:4px 8px">✕</button>
     </div>
-  );
+  `).join("") || `<div style="font-size:12px;color:#94a3b8">Sin feriados.</div>`;
+  $$("[data-del]").forEach(btn=> btn.onclick = ()=>{ const i=Number(btn.dataset.del); state.settings.feriados.splice(i,1); saveState(); renderFeriadosList(); });
 }
 
-/* Panel plegable */
-function DetailsPanel({collapsedText, body}){
-  const [open,setOpen]=useState(true);
-  return (
-    <div className="rounded-xl border border-slate-800 overflow-hidden">
-      <button className="w-full text-left px-3 py-2 bg-slate-800/60" onClick={()=>setOpen(o=>!o)}>
-        {open ? '▼ Ocultar' : '► Mostrar'} — {collapsedText}
-      </button>
-      {open && <div className="p-3 bg-slate-900">{body}</div>}
-    </div>
-  );
+// ---------- PWA SW ----------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js")
+      .then(reg => console.log("SW registrado", reg.scope))
+      .catch(err => console.error("Error SW", err));
+  });
 }
-
-/* Header de Guardia (solo aquí va el Rol) */
-function GuardHeader({data,setData}){
-  const P = data.poblacion||{};
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-      <Field label="Pabellón" value={data.pabellon} onChange={e=>setData({pabellon:e.target.value})}/>
-      <Field label="Población total" type="number" value={P.total} onChange={e=>setData({poblacion:{...P,total:e.target.value}})}/>
-      <Field label="Presentes" type="number" value={P.presentes} onChange={e=>setData({poblacion:{...P,presentes:e.target.value}})}/>
-      <Field label="Condenados"

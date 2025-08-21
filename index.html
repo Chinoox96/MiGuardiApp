@@ -2,29 +2,33 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Calendario de Guardias</title>
+
+  <!-- Estilos -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- React + Babel -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Manifest PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a" />
+
+  <!-- Iconos PWA -->
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
 </head>
 <body>
+  <!-- Contenedor principal -->
   <main id="root"></main>
 
-  <!-- Tu app -->
-  <script type="text/babel" data-presets="react" src="main.js"></script>
+  <!-- Scripts -->
+  <script src="main.js"></script>
 
-  <!-- Service Worker -->
+  <!-- Registro de Service Worker -->
   <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("./sw.js")
-          .then(reg => console.log("ServiceWorker registrado:", reg))
-          .catch(err => console.error("Error SW:", err));
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log("✅ Service Worker registrado:", reg.scope))
+          .catch(err => console.error("❌ Error al registrar Service Worker:", err));
       });
     }
   </script>
