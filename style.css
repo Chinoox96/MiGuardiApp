@@ -1,0 +1,30 @@
+/* Ajustes visuales y helpers */
+::-webkit-scrollbar{height:8px;width:8px}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:8px}
+
+.btn { @apply px-3 py-2 rounded-xl active:scale-95; }
+
+/* Modal base */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display:flex; align-items:center; justify-content:center; padding:12px; z-index:50;
+}
+.modal-card {
+  background:#0b1220; color:#e5e7eb; border:1px solid #1f2937;
+  border-radius:16px; width:100%; max-width:560px; padding:16px;
+}
+
+/* Gesture hints (opcional) */
+.swipe-zone { touch-action: pan-y; }
+
+/* Autocomplete lista flotante */
+.auto-wrap { position: relative; }
+.auto-list {
+  position:absolute; top:100%; left:0; right:0; z-index:20;
+  background:#0b1220; border:1px solid #1f2937; border-radius:12px; max-height:220px; overflow:auto;
+}
+.auto-item { padding:8px 10px; cursor:pointer; }
+.auto-item:hover { background:#172033; }
+
+/* Badge mini resumen */
+.badge { font-size:10px; padding:2px 6px; border-radius:9999px; background:#1f2937; }
