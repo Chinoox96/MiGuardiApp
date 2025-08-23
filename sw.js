@@ -1,4 +1,4 @@
-const CACHE = 'guardias-pwa-v7';
+const CACHE = 'guardias-pwa-v3';
 const base = self.registration.scope;
 const abs = (p) => new URL(p, base).toString();
 
