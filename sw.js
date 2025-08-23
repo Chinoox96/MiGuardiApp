@@ -1,52 +1,62 @@
-const CACHE = 'guardias-pwa-v3';
-const base = self.registration.scope;
-const abs = (p) => new URL(p, base).toString();
+// ↑ BUMP de versión para forzar update
+const CACHE_NAME = 'guardias-pwa-v6';
 
-const PRECACHE = [
-  '',              // raíz (index.html)
-  'index.html',
-  'manifest.json',
-  'icons/icon-192.png',
-  'icons/icon-512.png'
-].map(abs);
+// Lista de archivos a cachear (rutas relativas funcionan en GitHub Pages)
+const CORE_ASSETS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './sw.js',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
+  // si tu index inyecta librerías por CDN, no hace falta listarlas
+];
+
+// Helper para registrar sin romper si algún asset 404
+async function safeAddAll(cache, urls) {
+  for (const url of urls) {
+    try {
+      await cache.add(url);
+    } catch (e) {
+      // Log pero no romper toda la instalación
+      console.warn('[SW] No se pudo cachear:', url, e);
+    }
+  }
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-    for (const url of PRECACHE) {
-      try {
-        const res = await fetch(url, { cache: 'reload' });
-        if (res && res.ok) await cache.put(url, res.clone());
-      } catch (_) {}
-    }
+    const cache = await caches.open(CACHE_NAME);
+    await safeAddAll(cache, CORE_ASSETS);
+    await self.skipWaiting();
   })());
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => k !== CACHE_NAME ? caches.delete(k) : null));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-
+  if (event.request.method !== 'GET') return;
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(req);
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(event.request);
     if (cached) return cached;
-
     try {
-      const res = await fetch(req);
-      if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) {
-        try { await cache.put(req, res.clone()); } catch (_) {}
+      const res = await fetch(event.request);
+      // cache en background si es 200
+      if (res && res.status === 200 && res.type !== 'opaque') {
+        cache.put(event.request, res.clone());
       }
       return res;
     } catch (err) {
-      if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
-        const shell = await cache.match(abs('index.html'));
-        if (shell) return shell;
-      }
+      // fallback al shell si existe
+      const shell = await cache.match('./');
+      if (shell) return shell;
       throw err;
     }
   })());
