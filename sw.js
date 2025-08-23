@@ -1,63 +1,49 @@
-// ↑ BUMP de versión para forzar update
-const CACHE_NAME = 'guardias-pwa-v6';
-
-// Lista de archivos a cachear (rutas relativas funcionan en GitHub Pages)
-const CORE_ASSETS = [
+// sw.js
+const CACHE = 'guardias-pwa-v7';
+const CORE = [
   './',
   './index.html',
   './manifest.json',
   './sw.js',
   './icons/icon-192.png',
   './icons/icon-512.png'
-  // si tu index inyecta librerías por CDN, no hace falta listarlas
 ];
 
-// Helper para registrar sin romper si algún asset 404
-async function safeAddAll(cache, urls) {
-  for (const url of urls) {
-    try {
-      await cache.add(url);
-    } catch (e) {
-      // Log pero no romper toda la instalación
-      console.warn('[SW] No se pudo cachear:', url, e);
-    }
-  }
-}
-
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    await safeAddAll(cache, CORE_ASSETS);
+    const cache = await caches.open(CACHE);
+    for (const url of CORE) {
+      try { await cache.add(url); } catch (e) { console.warn('[SW] fallo en', url, e); }
+    }
     await self.skipWaiting();
   })());
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.map(k => k !== CACHE_NAME ? caches.delete(k) : null));
+    await Promise.all(keys.map(k => k !== CACHE ? caches.delete(k) : null));
     await self.clients.claim();
   })());
 });
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', event => {
+  // ⚠️ Sólo cachear peticiones same-origin (tu GitHub Pages). El CDN queda fuera.
+  if (new URL(event.request.url).origin !== self.location.origin) return;
+
   if (event.request.method !== 'GET') return;
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match(event.request);
-    if (cached) return cached;
+    const cache = await caches.open(CACHE);
+    const hit = await cache.match(event.request);
+    if (hit) return hit;
     try {
       const res = await fetch(event.request);
-      // cache en background si es 200
-      if (res && res.status === 200 && res.type !== 'opaque') {
-        cache.put(event.request, res.clone());
-      }
+      if (res && res.status === 200) cache.put(event.request, res.clone());
       return res;
-    } catch (err) {
-      // fallback al shell si existe
+    } catch (e) {
       const shell = await cache.match('./');
       if (shell) return shell;
-      throw err;
+      throw e;
     }
   })());
 });
