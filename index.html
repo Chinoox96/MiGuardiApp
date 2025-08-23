@@ -6,116 +6,179 @@
 <title>Guardias 24×48</title>
 <meta name="theme-color" content="#0ea5e9"/>
 <link id="mf" rel="manifest"/>
-<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII="/>
-
-<!-- Tailwind y React -->
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
 <style>
-  html,body,#root{height:100%}
-  body{background:#0f172a;color:#e5e7eb}
-  ::-webkit-scrollbar{height:8px;width:8px}
-  ::-webkit-scrollbar-thumb{background:#334155;border-radius:8px}
-  .btn{padding:.5rem .75rem;border-radius:.75rem;transform:translateZ(0)}
+  :root{
+    --bg:#0f172a; --panel:#0b1220; --muted:#94a3b8; --text:#e5e7eb; --line:#1f2937;
+    --sky:#0ea5e9; --emerald:#10b981; --rose:#ef4444; --amber:#f59e0b; --slate-700:#334155; --slate-800:#1f2937; --slate-900:#0f172a;
+  }
+  html,body,#app{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";-webkit-font-smoothing:antialiased}
+  button,input,select,textarea{color:inherit;font:inherit}
+  a{color:inherit}
+  .bar{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border-bottom:1px solid var(--line);background:#0a1020}
+  .btn{padding:.5rem .75rem;border-radius:.75rem;background:#22314c;border:1px solid #22314c;cursor:pointer}
+  .btn:active{transform:scale(.98)}
+  .btn.sky{background:var(--sky);border-color:var(--sky);color:#001220}
+  .btn.emerald{background:var(--emerald);border-color:var(--emerald);color:#001a14}
+  .btn.rose{background:var(--rose);border-color:var(--rose)}
+  .title{flex:1;text-align:center;font-weight:600;text-transform:capitalize}
+  .muted{color:var(--muted)}
+  .wrap{display:flex;flex-direction:column;height:100%}
+  .pad{padding: .75rem}
+  .card{background:#0b1220;border:1px solid var(--line);border-radius:16px}
+  .row{display:grid;gap:.5rem}
+  .row.cols2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .row.cols3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .row.cols4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .field{display:flex;flex-direction:column;gap:.25rem;font-size:.9rem}
+  .field>input,.field>select,.field>textarea{background:#0c172b;border:1px solid var(--line);border-radius:.75rem;padding:.5rem .75rem}
   .badge{font-size:10px;padding:2px 6px;border-radius:9999px;background:#1f2937}
-  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px;z-index:50}
-  .modal-card{background:#0b1220;color:#e5e7eb;border:1px solid #1f2937;border-radius:16px;width:100%;max-width:560px;padding:16px}
-  .auto-wrap{position:relative}
-  .auto-list{position:absolute;top:100%;left:0;right:0;z-index:20;background:#0b1220;border:1px solid #1f2937;border-radius:12px;max-height:220px;overflow:auto}
-  .auto-item{padding:8px 10px;cursor:pointer}
-  .auto-item:hover{background:#172033}
+  .grid{display:grid;gap:.25rem}
+  .month{grid-template-columns:repeat(7,1fr)}
+  .cell{aspect-ratio:1;border-radius:12px;padding:.25rem;display:flex;flex-direction:column;justify-content:space-between}
+  .cell .d{font-size:.75rem;opacity:.9}
+  .weekbar{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:.75rem;color:#94a3b8;margin-bottom:.25rem}
+  .scroll{overflow:auto}
+  /* Modal */
+  .mb{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px;z-index:50}
+  .mc{background:#0b1220;color:#e5e7eb;border:1px solid var(--line);border-radius:16px;width:100%;max-width:580px;padding:16px}
+  /* Autocomplete */
+  .auto{position:relative}
+  .alist{position:absolute;top:100%;left:0;right:0;z-index:20;background:#0b1220;border:1px solid var(--line);border-radius:12px;max-height:220px;overflow:auto}
+  .aitem{padding:8px 10px;cursor:pointer}
+  .aitem:hover{background:#172033}
+  /* Details */
+  .coll{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .colh{width:100%;text-align:left;background:#142137;padding:.5rem .75rem;border:0}
+  .cold{background:#0b1220;padding:.75rem}
+  /* tables */
+  .thead{display:grid;gap:.25rem;color:#93a4bf;text-transform:uppercase;font-size:11px;margin:.25rem 0 .5rem}
+  .tbl{display:grid;gap:.4rem}
+  /* summary banner */
+  .banner{background:#142137;border:1px solid var(--line);border-radius:12px;padding:.5rem .75rem;font-size:.9rem}
 </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="app"></div>
 
-<script type="text/babel" data-presets="env,react">
-const {useState,useMemo,useEffect,useRef,useContext} = React;
+<script>
+/* ================== Utils ================== */
+const $ = sel => document.querySelector(sel);
+const el = (tag, attrs={}, ...kids)=>{
+  const n = document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs||{})){
+    if(k==='style' && typeof v==='object') Object.assign(n.style, v);
+    else if(k.startsWith('on') && typeof v==='function') n.addEventListener(k.slice(2), v, {passive: !/scroll|wheel|touchmove/.test(k)});
+    else if(v!==false && v!=null) n.setAttribute(k, v===true? '': String(v));
+  }
+  for(const k of kids.flat()) n.append(k.nodeType? k: document.createTextNode(k));
+  return n;
+};
+const fmtMonth = new Intl.DateTimeFormat("es-AR",{month:"long",year:"numeric"});
+const fmtFull  = new Intl.DateTimeFormat("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+const ymd = d=>{const x=new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10);};
+const parseYMD = s=>{const [Y,m,d]=s.split('-').map(Number); const x=new Date(Y,m-1,d); x.setHours(0,0,0,0); return x;};
+const addDays = (d,n)=>{const x=new Date(d); x.setDate(x.getDate()+n); return x;};
+const startOfMonth = d=>{const x=new Date(d.getFullYear(), d.getMonth(), 1); x.setHours(0,0,0,0); return x;};
+const isWeekend = d=>[0,6].includes(new Date(d).getDay());
+const nowHHMM = ()=> new Date().toTimeString().slice(0,5);
 
-/* ========= Utils ========= */
-const fmtDay = new Intl.DateTimeFormat("es-AR", { day:"2-digit" });
-const fmtMonth = new Intl.DateTimeFormat("es-AR", { month:"long", year:"numeric" });
-const fmtFull = new Intl.DateTimeFormat("es-AR", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
-const ymd = d => { const x=new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); };
-const parseYMD = s => { const [Y,m,d]=s.split('-').map(Number); const x=new Date(Y,m-1,d); x.setHours(0,0,0,0); return x; };
-const addDays = (d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return x; };
-const startOfMonth = d => { const x=new Date(d.getFullYear(), d.getMonth(),1); x.setHours(0,0,0,0); return x; };
-const isWeekend = d => [0,6].includes(new Date(d).getDay()); // dom=0, sab=6
-const nowTimeHHMM = () => new Date().toTimeString().slice(0,5);
-
-/* ========= Persistencia ========= */
-const LS_KEY = "guardias.pwa.v4";
-const IDB_NAME = 'guardias-db';
-const IDB_STORE = 'state';
+/* ================= Persistencia ================= */
+const LS_KEY="guardias.pwa.sf.v1";
+const IDB_NAME='guardias-db', IDB_STORE='state';
 function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
 async function idbGet(key='singleton'){ try{ const db=await idbOpen(); return await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const st=tx.objectStore(IDB_STORE); const g=st.get(key); g.onsuccess=()=>res(g.result||null); g.onerror=()=>rej(g.error); }); }catch{ return null; } }
 async function idbSet(val,key='singleton'){ try{ const db=await idbOpen(); await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); const st=tx.objectStore(IDB_STORE); const p=st.put(val,key); p.onsuccess=()=>res(); p.onerror=()=>rej(p.error); }); }catch{} }
 
-/* ========= Estado ========= */
-function defaultState(){
-  return {
-    days: {},
-    pattern: { enabled:false, start:"", turno:"B" }, // Turno e inicio en Ajustes
-    colors: {
-      guardia: "#0ea5e9",
-      recargo: "#eab308",
-      art: "#ef4444",
-      licencia: "#60a5fa",
-      patternGuardiaBg: "rgba(16,185,129,0.25)",
-      selected: "#22c55e",
-      today: "#34d399"
-    },
-    holidays: [], // feriados YYYY-MM-DD
-    notes: [],
-    objectSuggestions: []
-  };
-}
-function useStore(){
-  const [state,setState] = useState(()=>{
-    try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null") || defaultState(); }
-    catch{ return defaultState(); }
-  });
-  useEffect(()=>{ (async()=>{ const from = await idbGet(); if(from){ setState(from); }})(); },[]);
-  useEffect(()=>{ localStorage.setItem(LS_KEY, JSON.stringify(state)); idbSet(state); },[state]);
-  return [state,setState];
-}
-const StoreCtx = React.createContext(null);
-const useStoreContext = ()=> useContext(StoreCtx);
-
-/* ========= Modelos ========= */
+/* ================== Estado ================== */
+const defaultState = ()=>({
+  days: {}, // 'YYYY-MM-DD': dayData
+  pattern: {enabled:false, start:"", turno:"B"},
+  colors: {
+    guardia:"#0ea5e9", recargo:"#eab308", art:"#ef4444", licencia:"#60a5fa",
+    patternGuardiaBg:"rgba(16,185,129,.25)", selected:"#22c55e", today:"#34d399"
+  },
+  holidays: [], // 'YYYY-MM-DD'
+  notes: [],
+  suggestions: [] // para "Objeto" (aprende)
+});
 function emptyDay(key){
   return {
     key,
     pabellon:"",
-    poblacion:{ total:"", condenados:"", procesados:"", presentes:"", hospitalizados:"" },
+    poblacion:{ total:"",condenados:"",procesados:"",presentes:"",hospitalizados:"" },
     role:"",
     companeros:"",
     notas:"",
-    estado:null,     // exclusivo: guardia | recargo | cubro_guardia | me_cubre_guardia | cubro_recargo | me_cubre_recargo | art | licencia
-    pago:false,      // 💲 XOR 🔄
-    swap:false,      // 🔄 XOR 💲
-    linkedDate:"",
-    linkedType:"",
-    movimientos:[],
-    poblacionListado:[]
+    estado:null, // exclusivo
+    pago:false, swap:false, linkedDate:"", linkedType:"", artNum:"",
+    movimientos:[], // {objeto,entrada,salida,movimiento,a_cargo}
+    poblacionListado:[] // {matricula,cp:'C'|'P',nombre}
   };
 }
 
-/* ========= Licencia helpers ========= */
+let S = defaultState();
+let CUR = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let SELECTED = null; // 'YYYY-MM-DD'
+
+async function loadState(){
+  try{ S = JSON.parse(localStorage.getItem(LS_KEY)||"null") || defaultState(); }catch{ S = defaultState(); }
+  const fromIDB = await idbGet(); if(fromIDB) S = fromIDB;
+}
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(S)); idbSet(S); }
+
+/* ================== PWA: manifest + SW ================== */
+(function setupManifestAndSW(){
+  const manifest = {
+    name:"Guardias 24×48", short_name:"Guardias", start_url:".", display:"standalone",
+    background_color:"#0f172a", theme_color:"#0ea5e9",
+    icons:[
+      {src:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII=",sizes:"192x192",type:"image/png"},
+      {src:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII=",sizes:"512x512",type:"image/png"}
+    ]
+  };
+  const blob=new Blob([JSON.stringify(manifest)],{type:"application/manifest+json"});
+  const url=URL.createObjectURL(blob); document.getElementById('mf').setAttribute('href', url);
+
+  const canSW = 'serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost');
+  if(!canSW) return;
+
+  // 1) intenta sw.js externo (recomendado para GitHub Pages)
+  fetch('./sw.js',{cache:'no-store'}).then(r=>{
+    if(r.ok){ navigator.serviceWorker.register('./sw.js'); return; }
+    throw 0;
+  }).catch(()=>{
+    // 2) fallback: blob (algunos navegadores no lo permiten)
+    const swCode = `
+const CACHE='guardias-pwa-sf-v1';
+self.addEventListener('install',e=>{e.waitUntil((async()=>{const c=await caches.open(CACHE); await c.addAll(['./','./index.html']);})()); self.skipWaiting();});
+self.addEventListener('activate',e=>{e.waitUntil(self.clients.claim());});
+self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET') return;
+  e.respondWith((async()=>{
+    const c=await caches.open(CACHE); const m=await c.match(e.request); if(m) return m;
+    try{ const r=await fetch(e.request); try{ await c.put(e.request,r.clone()); }catch{} return r; }
+    catch(err){ const shell=await c.match('./'); if(shell) return shell; throw err; }
+  })());
+});`;
+    try{
+      const blob = new Blob([swCode],{type:'text/javascript'});
+      const url = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(url).catch(()=>{ /* sin offline */ });
+    }catch{}
+  });
+})();
+
+/* ================== Helpers de licencia ================== */
 function expandLicenseByDates(startStr, endStr){
-  const start = parseYMD(startStr), end = parseYMD(endStr);
-  const out=[]; for(let d=new Date(start); d<=end; d=addDays(d,1)) out.push(ymd(d)); return out;
+  const start=parseYMD(startStr), end=parseYMD(endStr); const out=[];
+  for(let d=new Date(start); d<=end; d=addDays(d,1)) out.push(ymd(d)); return out;
 }
 function expandLicenseByWorkingDays(startStr, count, holidaysSet, skipWeekends=true){
   const out=[]; let d=parseYMD(startStr);
   while(out.length < count){
-    const key=ymd(d);
-    const weekend = skipWeekends && isWeekend(d);
-    const holiday = holidaysSet.has(key);
-    if(!(weekend || holiday)) out.push(key);
+    const k=ymd(d); const weekend = skipWeekends && isWeekend(d); const holiday = holidaysSet.has(k);
+    if(!(weekend||holiday)) out.push(k);
     d = addDays(d,1);
   }
   return out;
@@ -126,707 +189,523 @@ function expandLicenseByCalendarDays(startStr, count){
   return out;
 }
 
-/* ========= App ========= */
-function App(){
-  const [store,setStore] = useStore();
-  const today = new Date();
-  const [cursor,setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const [selectedKey,setSelectedKey] = useState(null);
-  const [screen,setScreen] = useState('month'); // month | day | notes
-  const [quickKey,setQuickKey] = useState(null);
-  const [showSettings,setShowSettings] = useState(false);
-  const [showLicense,setShowLicense] = useState(null);
-
-  // Mes
-  const cells = useMemo(()=>{
-    const start = startOfMonth(cursor);
-    const startWeekDay = (start.getDay()+6)%7; // Lunes=0
-    const first = addDays(start,-startWeekDay);
-    return Array.from({length:42},(_,i)=> addDays(first,i));
-  },[cursor]);
-
-  // Patrón 24×48 (día 0 guardia, luego 2 francos)
-  const isPatternGuardia = useMemo(()=>{
-    const p=store.pattern; if(!p.enabled||!p.start) return ()=>false;
-    const anchor=parseYMD(p.start);
-    return d=>{ const diff = Math.floor((parseYMD(ymd(d)) - anchor)/86400000); return (diff%3===0); };
-  },[store.pattern]);
-
-  function dayData(k){ return store.days[k] || emptyDay(k); }
-  function saveDay(k,patch){ setStore(s=> ({...s, days:{...s.days, [k]:{...dayData(k), ...patch}} })); }
-
-  // Estado exclusivo por día (💲 XOR 🔄)
-  function setDayEstado(k, {estado=null, pago=false, swap=false, linkedDate="", linkedType=""}){
-    if(pago && swap) pago=false; // forzar regla
-    const d = dayData(k);
-    // espejo para swap
-    if(swap && linkedDate){
-      const mirror = dayData(linkedDate);
-      let tipoEsp = "";
-      if(estado==='cubro_guardia') tipoEsp='me_cubre_guardia';
-      else if(estado==='me_cubre_guardia') tipoEsp='cubro_guardia';
-      else if(estado==='cubro_recargo') tipoEsp='me_cubre_recargo';
-      else if(estado==='me_cubre_recargo') tipoEsp='cubro_recargo';
-      if(tipoEsp){
-        saveDay(linkedDate, { estado: tipoEsp, pago, swap:true, linkedDate:k, linkedType:estado });
-      }
-    }
-    saveDay(k,{ estado, pago, swap, linkedDate, linkedType });
-  }
-
-  // Gestos: tap/doble tap
-  const lastTapRef = useRef(0);
-  function onTapDay(d){
-    const t=Date.now();
-    if(t - lastTapRef.current < 350){ openDay(d); }
-    else { setSelectedKey(ymd(d)); }
-    lastTapRef.current = t;
-  }
-  function openDay(d){ const k=ymd(d); setSelectedKey(k); setScreen('day'); }
-
-  // Resumen del seleccionado
-  const summary = useMemo(()=>{
-    if(!selectedKey) return null;
-    const d = dayData(selectedKey);
-    const base = [];
-    if(d.estado) base.push(d.estado.toUpperCase());
-    if(d.pabellon) base.push(`Pab: ${d.pabellon}`);
-    const P=d.poblacion||{};
-    if(P.total) base.push(`Pob: ${P.total}`);
-    if(P.condenados) base.push(`Cond: ${P.condenados}`);
-    if(P.procesados) base.push(`Proc: ${P.procesados}`);
-    if(d.companeros) base.push(`Comp: ${d.companeros}`);
-    return base.join(" · ");
-  },[selectedKey, store.days]);
-
-  return (
-    <div className="h-full flex flex-col">
-      <TopBar
-        screen={screen} cursor={cursor}
-        onPrev={()=> setCursor(d=> new Date(d.getFullYear(), d.getMonth()-1,1))}
-        onNext={()=> setCursor(d=> new Date(d.getFullYear(), d.getMonth()+1,1))}
-        onBack={()=> setScreen('month')}
-        onSettings={()=> setShowSettings(true)}
-        onNotes={()=> setScreen('notes')}
-      />
-
-      {screen==='month' && (
-        <>
-          {selectedKey && summary && (
-            <div className="px-3 pt-2">
-              <div className="bg-slate-800/70 border border-slate-700 rounded-xl px-3 py-2 text-sm">{selectedKey} — {summary}</div>
-            </div>
-          )}
-          <MonthGrid
-            cells={cells}
-            cursor={cursor}
-            selectedKey={selectedKey}
-            onTap={onTapDay}
-            onOpen={openDay}
-            isPattern={d=> isPatternGuardia(d)}
-            colors={store.colors}
-            getDay={k=>dayData(k)}
-            onLong={(d)=> setQuickKey(ymd(d))}
-          />
-        </>
-      )}
-
-      {screen==='day' && selectedKey && (
-        <DayScreen
-          ymdKey={selectedKey}
-          data={dayData(selectedKey)}
-          setData={(patch)=> saveDay(selectedKey, patch)}
-          setEstado={(payload)=> setDayEstado(selectedKey, payload)}
-          colors={store.colors}
-        />
-      )}
-
-      {screen==='notes' && (
-        <NotesScreen store={store} setStore={setStore}/>
-      )}
-
-      {quickKey && (
-        <QuickModal
-          ymdKey={quickKey}
-          data={dayData(quickKey)}
-          colors={store.colors}
-          onClose={()=>setQuickKey(null)}
-          onPick={(payload)=>{ setQuickKey(null); setDayEstado(quickKey, payload); }}
-          onOpenLicencia={()=>{ setQuickKey(null); setShowLicense({date:quickKey}); }}
-        />
-      )}
-
-      {showSettings && (
-        <SettingsModal
-          store={store}
-          onClose={()=>setShowSettings(false)}
-          onSave={setStore}
-        />
-      )}
-
-      {showLicense && (
-        <LicenseModal
-          date={showLicense.date}
-          holidays={new Set(store.holidays)}
-          onClose={()=>setShowLicense(null)}
-          onApply={({mode, until, corridos, habiles, excluirFeriados})=>{
-            let keys=[];
-            if(mode==='rango' && until){
-              keys = expandLicenseByDates(showLicense.date, until);
-            }else{
-              if(corridos>0) keys = keys.concat(expandLicenseByCalendarDays(showLicense.date, Number(corridos)));
-              if(habiles>0){
-                const add = expandLicenseByWorkingDays(showLicense.date, Number(habiles), new Set(excluirFeriados? store.holidays: []), true);
-                keys = keys.concat(add);
-              }
-            }
-            const patchDays={...store.days};
-            keys.forEach(k=>{ patchDays[k] = {...(patchDays[k]||emptyDay(k)), estado:'licencia', pago:false, swap:false, linkedDate:"", linkedType:""}; });
-            setStore(s=> ({...s, days: patchDays}));
-            setShowLicense(null);
-          }}
-        />
-      )}
-    </div>
+/* ================== Render ================== */
+function render(){
+  const app = $('#app'); app.innerHTML='';
+  app.append(
+    topBar(),
+    ...(SELECTED && bannerSummary()? [el('div',{class:'pad'}, bannerSummary())]:[]),
+    viewMonth()
   );
 }
 
-/* ===== Topbar ===== */
-function TopBar({screen,cursor,onPrev,onNext,onBack,onSettings,onNotes}){
-  return (
-    <header className="px-3 py-2 bg-slate-950 border-b border-slate-800 flex items-center gap-2">
-      {screen!=='month'
-        ? <button onClick={onBack} className="btn bg-slate-800">←</button>
-        : <button onClick={onPrev} className="btn bg-slate-800">◀</button>}
-      <div className="text-lg font-medium flex-1 text-center select-none capitalize">{fmtMonth.format(cursor)}</div>
-      {screen==='month'
-        ? <button onClick={onNext} className="btn bg-slate-800">▶</button>
-        : <div className="w-[40px]"/>}
-      <button onClick={onNotes} className="btn bg-sky-600">Notas</button>
-      <button onClick={onSettings} className="btn bg-emerald-600">Ajustes</button>
-    </header>
+function topBar(){
+  const isMonth = true;
+  return el('div',{class:'bar'},
+    el('button',{class:'btn',onclick:()=>{ CUR=new Date(CUR.getFullYear(), CUR.getMonth()-1,1); render(); }}, '◀'),
+    el('div',{class:'title'}, fmtMonth.format(CUR)),
+    el('button',{class:'btn',onclick:()=>{ CUR=new Date(CUR.getFullYear(), CUR.getMonth()+1,1); render(); }}, '▶'),
+    el('button',{class:'btn sky',onclick:()=>openNotes()},'Notas'),
+    el('button',{class:'btn emerald',onclick:()=>openSettings()},'Ajustes')
   );
 }
 
-/* ===== Calendario ===== */
-function MonthGrid({cells,cursor,selectedKey,onTap,onOpen,isPattern,colors,getDay,onLong}){
+function bannerSummary(){
+  const d = getDay(SELECTED);
+  const base=[];
+  if(d.estado) base.push(d.estado.toUpperCase());
+  if(d.pabellon) base.push(`Pab: ${d.pabellon}`);
+  const P=d.poblacion||{};
+  if(P.total) base.push(`Pob: ${P.total}`);
+  if(P.condenados) base.push(`Cond: ${P.condenados}`);
+  if(P.procesados) base.push(`Proc: ${P.procesados}`);
+  if(d.companeros) base.push(`Comp: ${d.companeros}`);
+  return el('div',{class:'banner'}, `${SELECTED} — ${base.join(' · ')}`);
+}
+
+function viewMonth(){
+  const wrap = el('div',{class:'pad scroll',style:{flex:'1 1 auto'}});
+  const weekbar = el('div',{class:'weekbar'},
+    ...['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(w=>el('div',{},w))
+  );
+  const grid = el('div',{class:'grid month'});
+  const start = startOfMonth(CUR);
+  const startWeekDay = (start.getDay()+6)%7; // lunes=0
+  const first = addDays(start, -startWeekDay);
   const todayKey = ymd(new Date());
-  const weekdays = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-  return (
-    <div className="flex-1 overflow-y-auto px-2 pb-2">
-      <div className="grid grid-cols-7 text-center text-xs text-slate-400 mb-1 select-none">
-        {weekdays.map(w=> <div key={w} className="py-1">{w}</div>)}
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((d,i)=>{
-          const inMonth = d.getMonth()===cursor.getMonth();
-          const k = ymd(d);
-          const info = getDay(k);
-          const pattern = isPattern(d);
-          const isToday = todayKey===k;
-          const isSel = selectedKey===k;
-          return (
-            <MonthCell key={i}
-              date={d}
-              inMonth={inMonth}
-              info={info}
-              pattern={pattern}
-              isToday={isToday}
-              isSel={isSel}
-              colors={colors}
-              onTap={()=>onTap(d)}
-              onOpen={()=>onOpen(d)}
-              onLong={()=>onLong?.(d)}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-function MonthCell({date,inMonth,info,pattern,isToday,isSel,colors,onTap,onOpen,onLong}){
-  const holdRef = useRef(null);
-  const onTouchStart = ()=>{ holdRef.current = setTimeout(()=> onLong?.(), 550); };
-  const onTouchEnd = ()=>{ if(holdRef.current){ clearTimeout(holdRef.current); holdRef.current=null; } };
+  let lastTapTime=0, lastTapKey=null;
 
-  let bg = inMonth? 'bg-slate-800' : 'bg-slate-800/30';
-  let style = {};
-  if(pattern && !info?.estado){ style.background = colors.patternGuardiaBg; }
-  if(info?.estado){
-    const mapCol = {
-      guardia: colors.guardia,
-      recargo: colors.recargo,
-      art: colors.art,
-      licencia: colors.licencia,
-      cubro_guardia: colors.guardia,
-      me_cubre_guardia: colors.guardia,
-      cubro_recargo: colors.recargo,
-      me_cubre_recargo: colors.recargo
-    };
-    style.background = mapCol[info.estado] || 'transparent';
+  for(let i=0;i<42;i++){
+    const d=addDays(first,i), key=ymd(d), inMonth = d.getMonth()===CUR.getMonth();
+    const info = getDay(key);
+    const pattern = isPatternGuardia(d);
+    const cell = el('button',{class:'cell',style:cellStyle(inMonth, info, pattern, key===todayKey, key===SELECTED)});
+    cell.append(
+      el('div',{class:'d'}, String(d.getDate()).padStart(2,'0')),
+      el('div',{}, ...(info.pago?[el('span',{class:'badge'},'💲')]:[]), ...(info.swap?[el('span',{class:'badge'},'🔄')]:[]))
+    );
+    // Gestos
+    let hold=null;
+    cell.addEventListener('click',()=>{
+      const t=Date.now();
+      if(lastTapKey===key && t-lastTapTime<350){ openDay(key); }
+      else { SELECTED=key; render(); }
+      lastTapTime=t; lastTapKey=key;
+    });
+    cell.addEventListener('contextmenu',(e)=>{e.preventDefault(); openQuick(key);});
+    cell.addEventListener('touchstart',()=>{ hold=setTimeout(()=>openQuick(key),550); },{passive:true});
+    cell.addEventListener('touchend',()=>{ if(hold){clearTimeout(hold); hold=null;} },{passive:true});
+
+    grid.append(cell);
   }
-  if(isSel){ style.outline = `2px solid ${colors.selected}`; }
-  if(isToday){ style.boxShadow = `inset 0 0 0 2px ${colors.today}`; }
-
-  return (
-    <button
-      onClick={onTap}
-      onDoubleClick={onOpen}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      onContextMenu={(e)=>{ e.preventDefault(); onLong?.(); }}
-      className={`aspect-square rounded-xl p-1 flex flex-col items-start justify-between ${bg}`}
-      style={style}
-    >
-      <div className="text-[11px] opacity-90">{fmtDay.format(date)}</div>
-      <div className="w-full flex gap-1 flex-wrap justify-end">
-        {info?.pago && <span className="badge">💲</span>}
-        {info?.swap && <span className="badge">🔄</span>}
-      </div>
-    </button>
-  );
+  wrap.append(weekbar, grid);
+  return wrap;
 }
 
-/* ===== Quick modal (long press) ===== */
-function QuickModal({ymdKey,data,colors,onClose,onPick,onOpenLicencia}){
-  const [estado,setEstado]=useState(data.estado||"");
-  const [pago,setPago]=useState(!!data.pago);
-  const [swap,setSwap]=useState(!!data.swap);
-  const [linked,setLinked]=useState(data.linkedDate||"");
-  useEffect(()=>{ if(pago && swap){ setPago(false); } },[pago,swap]);
-
-  function go(){
-    if(estado==='licencia'){ onOpenLicencia(); return; }
-    onPick({estado: estado||null, pago, swap, linkedDate: swap? linked:"", linkedType:""});
+function cellStyle(inMonth, info, pattern, isToday, isSel){
+  const st = { background: inMonth? '#1e293b':'#1e293b55', border:'1px solid #1f2937', outline:'none' };
+  if(pattern && !info.estado) st.background = S.colors.patternGuardiaBg;
+  if(info.estado){
+    const map={guardia:S.colors.guardia, recargo:S.colors.recargo, art:S.colors.art, licencia:S.colors.licencia,
+      cubro_guardia:S.colors.guardia, me_cubre_guardia:S.colors.guardia, cubro_recargo:S.colors.recargo, me_cubre_recargo:S.colors.recargo};
+    st.background = map[info.estado] || st.background;
   }
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={e=>e.stopPropagation()}>
-        <div className="text-sm opacity-80 mb-2">{ymdKey}</div>
-        <div className="grid gap-2">
-          <select value={estado} onChange={e=>setEstado(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-2">
-            <option value="">(sin estado)</option>
-            <option value="guardia">Guardia</option>
-            <option value="recargo">Recargo</option>
-            <option value="cubro_guardia">Cubro guardia a…</option>
-            <option value="me_cubre_guardia">Me cubre guardia…</option>
-            <option value="cubro_recargo">Cubro recargo a…</option>
-            <option value="me_cubre_recargo">Me cubre recargo…</option>
-            <option value="art">ART Nº…</option>
-            <option value="licencia">Licencia…</option>
-          </select>
-          {(estado && !['recargo','guardia','art','licencia'].includes(estado)) && (
-            <input placeholder="Apellido/Nombre" className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-          )}
-          <label className="text-sm flex items-center gap-2">
-            <input type="checkbox" checked={pago} onChange={e=>{ setPago(e.target.checked); if(e.target.checked) setSwap(false); }}/> 💲
-          </label>
-          <label className="text-sm flex items-center gap-2">
-            <input type="checkbox" checked={swap} onChange={e=>{ setSwap(e.target.checked); if(e.target.checked) setPago(false); }}/> 🔄
-          </label>
-          {swap && <input type="date" value={linked} onChange={e=>setLinked(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>}
-        </div>
-        <div className="mt-3 flex justify-end gap-2">
-          <button className="btn bg-slate-700" onClick={onClose}>Cancelar</button>
-          <button className="btn bg-emerald-600" onClick={go}>{estado==='licencia'?'Licencia…':'Guardar'}</button>
-        </div>
-      </div>
-    </div>
-  );
+  if(isSel) st.outline = `2px solid ${S.colors.selected}`;
+  if(isToday){ st.boxShadow = `inset 0 0 0 2px ${S.colors.today}`; }
+  return st;
 }
 
-/* ===== Modal Licencia ===== */
-function LicenseModal({date,holidays,onClose,onApply}){
-  const [mode,setMode]=useState('rango'); // 'rango' | 'calculo'
-  const [hasta,setHasta]=useState("");
-  const [corridos,setCorridos]=useState("");
-  const [habiles,setHabiles]=useState("");
-  const [excluirFeriados,setExcluirFeriados]=useState(true);
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={e=>e.stopPropagation()}>
-        <div className="text-sm mb-2">Licencia desde <strong>{date}</strong></div>
-        <div className="mb-2">
-          <label className="mr-3"><input type="radio" name="m" checked={mode==='rango'} onChange={()=>setMode('rango')}/> Por rango</label>
-          <label><input type="radio" name="m" checked={mode==='calculo'} onChange={()=>setMode('calculo')}/> Por días</label>
-        </div>
-        {mode==='rango' ? (
-          <div className="grid gap-2">
-            <label>Hasta: <input type="date" value={hasta} onChange={e=>setHasta(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
-          </div>
-        ) : (
-          <div className="grid gap-2">
-            <label>Días corridos: <input type="number" min="0" value={corridos} onChange={e=>setCorridos(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
-            <label>Días hábiles: <input type="number" min="0" value={habiles} onChange={e=>setHabiles(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
-            <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={excluirFeriados} onChange={e=>setExcluirFeriados(e.target.checked)}/> Excluir feriados</label>
-          </div>
-        )}
-        <div className="mt-3 flex justify-end gap-2">
-          <button className="btn bg-slate-700" onClick={onClose}>Cancelar</button>
-          <button className="btn bg-emerald-600" onClick={()=> onApply({mode, until:hasta, corridos, habiles, excluirFeriados})}>Aplicar</button>
-        </div>
-      </div>
-    </div>
-  );
+/* ============= Datos día / patrón ============= */
+function getDay(k){ return S.days[k] || emptyDay(k); }
+function setDay(k,patch){ S.days[k] = {...getDay(k), ...patch}; saveState(); }
+function isPatternGuardia(d){
+  const p=S.pattern; if(!p.enabled||!p.start) return false;
+  const anchor = parseYMD(p.start);
+  const diff = Math.floor((parseYMD(ymd(d))-anchor)/86400000);
+  return (diff%3===0);
 }
 
-/* ===== Día ===== */
-function DayScreen({ymdKey,data,setData,setEstado,colors}){
-  const [tab,setTab]=useState("guardia");
-  useEffect(()=> setTab("guardia"), [ymdKey]);
-  const P = data.poblacion||{};
-  const collapsedSummary = [`Pab: ${data.pabellon||'-'}`, `Pob: ${P.total||'-'}`, `Cond: ${P.condenados||'-'}`, `Proc: ${P.procesados||'-'}`].join(' · ');
-  return (
-    <div className="flex-1 flex flex-col h-full">
-      <div className="px-3 py-2 border-b border-slate-800 bg-slate-950 sticky top-0 z-10">
-        <div className="text-base">{fmtFull.format(parseYMD(ymdKey))}</div>
-      </div>
+/* ============= Acciones día (estado exclusivo) ============= */
+function setEstadoExclusivo(k, payload){
+  // payload: {estado, pago, swap, linkedDate, artNum?}
+  let {estado=null, pago=false, swap=false, linkedDate="", artNum=""} = payload||{};
+  if(pago && swap) pago=false; // XOR
+  const d = getDay(k);
 
-      <div className="flex gap-2 px-3 py-2">
-        <button onClick={()=>setTab('guardia')} className={`px-4 py-2 rounded-full text-base ${tab==='guardia'?'bg-sky-600':'bg-slate-800'}`}>Guardia</button>
-        <button onClick={()=>setTab('poblacion')} className={`px-4 py-2 rounded-full text-base ${tab==='poblacion'?'bg-sky-600':'bg-slate-800'}`}>Población</button>
-      </div>
-
-      <div className="px-3">
-        <DetailsPanel
-          collapsedText={collapsedSummary}
-          body={<GuardHeader data={data} setData={setData}/>}
-        />
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-3">
-        {tab==='guardia'
-          ? <MovimientosTable data={data} setData={setData}/>
-          : <PoblacionTable data={data} setData={setData}/>
-        }
-      </div>
-    </div>
-  );
-}
-function DetailsPanel({collapsedText, body}){
-  const [open,setOpen]=useState(true);
-  return (
-    <div className="rounded-xl border border-slate-800 overflow-hidden">
-      <button className="w-full text-left px-3 py-2 bg-slate-800/60" onClick={()=>setOpen(o=>!o)}>
-        {open ? '▼ Ocultar' : '► Mostrar'} — {collapsedText}
-      </button>
-      {open && <div className="p-3 bg-slate-900">{body}</div>}
-    </div>
-  );
-}
-function GuardHeader({data,setData}){
-  const P = data.poblacion||{};
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-      <Field label="Pabellón" value={data.pabellon} onChange={e=>setData({pabellon:e.target.value})}/>
-      <Field label="Población total" type="number" value={P.total} onChange={e=>setData({poblacion:{...P,total:e.target.value}})}/>
-      <Field label="Presentes" type="number" value={P.presentes} onChange={e=>setData({poblacion:{...P,presentes:e.target.value}})}/>
-      <Field label="Condenados" type="number" value={P.condenados} onChange={e=>setData({poblacion:{...P,condenados:e.target.value}})}/>
-      <Field label="Procesados" type="number" value={P.procesados} onChange={e=>setData({poblacion:{...P,procesados:e.target.value}})}/>
-      <Field label="Hospitalizados" type="number" value={P.hospitalizados} onChange={e=>setData({poblacion:{...P,hospitalizados:e.target.value}})}/>
-      <Field label="Rol (Celador/Auxiliar)" value={data.role} onChange={e=>setData({role:e.target.value})}/>
-      <Field label="Acompañado por (coma separada)" value={data.companeros} onChange={e=>setData({companeros:e.target.value})}/>
-      <TextArea label="Notas" value={data.notas} onChange={e=>setData({notas:e.target.value})}/>
-    </div>
-  );
-}
-
-/* ===== Movimientos con autocomplete que aprende ===== */
-function MovimientosTable({data,setData}){
-  const rows = data.movimientos || [];
-  function add(){
-    const firstTime = nowTimeHHMM();
-    setData({ movimientos:[ ...rows, { objeto:"", entrada:firstTime, salida:"", movimiento:"", a_cargo:"" } ]});
-  }
-  function del(i){ const c=[...rows]; c.splice(i,1); setData({movimientos:c}); }
-  function setRow(i,patch){ const c=[...rows]; c[i]={...c[i],...patch}; setData({movimientos:c}); }
-
-  return (
-    <div>
-      <div className="grid grid-cols-5 text-[11px] uppercase tracking-wide text-slate-400 mb-1 px-1">
-        <div>Objeto</div><div>Entrada</div><div>Salida</div><div>Movimiento</div><div>A cargo de</div>
-      </div>
-      <div className="space-y-2">
-        {rows.map((r,i)=> (
-          <div key={i} className="grid grid-cols-5 gap-1">
-            <AutoCompleteCell value={r.objeto} onChange={v=>setRow(i,{objeto:v})}/>
-            <input value={r.entrada||""} onChange={e=>setRow(i,{entrada:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
-            <input value={r.salida||""} onChange={e=>setRow(i,{salida:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
-            <input value={r.movimiento||""} onChange={e=>setRow(i,{movimiento:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
-            <div className="flex gap-1">
-              <input value={r.a_cargo||""} onChange={e=>setRow(i,{a_cargo:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm flex-1"/>
-              <button onClick={()=>del(i)} className="px-2 rounded-lg bg-rose-600">✕</button>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-end">
-        <button onClick={add} className="px-3 py-2 rounded-xl bg-emerald-600">Agregar fila</button>
-      </div>
-    </div>
-  );
-}
-function AutoCompleteCell({value,onChange}){
-  const [store,setStore] = useStoreContext();
-  const [open,setOpen]=useState(false);
-  const [query,setQuery]=useState(value||"");
-  const suggestions = useMemo(()=>{
-    const base = store.objectSuggestions || [];
-    if(!query) return base.slice(0,20);
-    const q=query.toLowerCase();
-    return base.filter(s=> s.toLowerCase().includes(q)).slice(0,20);
-  },[store.objectSuggestions, query]);
-  function commit(val){
-    onChange(val); setQuery(val); setOpen(false);
-    if(val && !store.objectSuggestions?.includes(val)){
-      setStore(s=> ({...s, objectSuggestions: [...(s.objectSuggestions||[]), val].slice(-200)}));
+  // espejo de swap (si hay fecha)
+  if(swap && linkedDate){
+    const map={cubro_guardia:'me_cubre_guardia', me_cubre_guardia:'cubro_guardia', cubro_recargo:'me_cubre_recargo', me_cubre_recargo:'cubro_recargo'};
+    const tipoEsp = map[estado]||null;
+    if(tipoEsp){
+      const other = getDay(linkedDate);
+      S.days[linkedDate] = {...other, estado: tipoEsp, pago, swap:true, linkedDate:k, linkedType:estado};
     }
   }
-  return (
-    <div className="auto-wrap">
-      <input
-        value={query}
-        onChange={e=>{ setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
-        onFocus={()=> setOpen(true)}
-        onBlur={()=> setTimeout(()=>setOpen(false), 150)}
-        placeholder="Recuento, Servicio médico…"
-        className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm w-full"
-      />
-      {open && suggestions.length>0 && (
-        <div className="auto-list">
-          {suggestions.map((s,i)=> (
-            <div key={i} className="auto-item" onMouseDown={()=>commit(s)}>{s}</div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  // set en k
+  const base = { estado, pago, swap, linkedDate, linkedType:"" };
+  if(estado==='art') base.artNum = artNum||"";
+  else base.artNum = "";
+  S.days[k] = {...d, ...base};
+  saveState(); render();
 }
 
-/* ===== Población ===== */
-function PoblacionTable({data,setData}){
-  const rows = data.poblacionListado || [];
-  function add(){ setData({ poblacionListado:[ ...rows, { matricula:"", cp:"C", nombre:"" } ]}); }
-  function del(i){ const c=[...rows]; c.splice(i,1); setData({poblacionListado:c}); }
-  function setRow(i,patch){ const c=[...rows]; c[i]={...c[i],...patch}; setData({poblacionListado:c}); }
+/* ============= Modales ============= */
+function openQuick(k){
+  const d = getDay(k);
+  const mb = el('div',{class:'mb',onclick:(e)=>{ if(e.target===mb) mb.remove(); }});
+  const mc = el('div',{class:'mc'});
+  mb.append(mc);
 
-  const P = data.poblacion||{};
-  const tot = rows.length;
-  const condenados = rows.filter(r=>r.cp==='C').length;
-  const procesados = rows.filter(r=>r.cp==='P').length;
-  const mismatch =
-    (P.total && Number(P.total)!==tot) ||
-    (P.condenados && Number(P.condenados)!==condenados) ||
-    (P.procesados && Number(P.procesados)!==procesados);
+  let estado=d.estado||"", pago=!!d.pago, swap=!!d.swap, linked=d.linkedDate||"", artNum=d.artNum||"", quien="";
 
-  return (
-    <div>
-      {mismatch && (
-        <div className="mb-2 text-xs text-amber-400">
-          Aviso: los totales de la cabecera (Pob/Cond/Proc) no coinciden con el detalle ingresado aquí.
-        </div>
-      )}
-      <div className="grid grid-cols-3 text-[11px] uppercase tracking-wide text-slate-400 mb-1 px-1">
-        <div>Matrícula</div><div>C/P</div><div>Apellido y Nombre</div>
-      </div>
-      <div className="space-y-2">
-        {rows.map((r,i)=> (
-          <div key={i} className="grid grid-cols-3 gap-1">
-            <input value={r.matricula||""} onChange={e=>setRow(i,{matricula:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
-            <select value={r.cp||"C"} onChange={e=>setRow(i,{cp:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm">
-              <option value="C">C</option><option value="P">P</option>
-            </select>
-            <div className="flex gap-1">
-              <input value={r.nombre||""} onChange={e=>setRow(i,{nombre:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm flex-1"/>
-              <button onClick={()=>del(i)} className="px-2 rounded-lg bg-rose-600">✕</button>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-end">
-        <button onClick={add} className="px-3 py-2 rounded-xl bg-emerald-600">Agregar interno</button>
-      </div>
-    </div>
+  const sel = el('select',{class:'field',style:{width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}},
+    ...["","guardia","recargo","cubro_guardia","me_cubre_guardia","cubro_recargo","me_cubre_recargo","art","licencia"]
+      .map(v=>el('option',{value:v,selected:v===estado}, v? v.replaceAll('_',' '): '(sin estado)'))
   );
-}
+  const who = el('input',{placeholder:'Apellido/Nombre (si aplica)',value:quien,style:{display:'none',width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}});
+  const art = el('input',{placeholder:'Nº ART',value:artNum,style:{display: estado==='art'?'block':'none',width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}});
+  const cbPago = el('input',{type:'checkbox',checked:pago,onchange:(e)=>{ pago=e.target.checked; if(pago) {cbSwap.checked=false; swap=false;} }});
+  const cbSwap = el('input',{type:'checkbox',checked:swap,onchange:(e)=>{ swap=e.target.checked; if(swap){ cbPago.checked=false; pago=false;} ln.style.display='block';} });
+  const ln = el('input',{type:'date',value:linked,style:{display: swap?'block':'none',width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}});
 
-/* ===== Ajustes ===== */
-function SettingsModal({store,onClose,onSave}){
-  const [start,setStart]=useState(store.pattern.start||"");
-  const [turno,setTurno]=useState(store.pattern.turno||"B");
-  const [enabled,setEnabled]=useState(!!store.pattern.enabled);
-  const [colors,setColors]=useState(store.colors||{});
-  const [holidaysTxt,setHolidaysTxt]=useState((store.holidays||[]).join("\n"));
-
-  function save(){
-    const holidays = holidaysTxt.split(/\s+/).map(s=>s.trim()).filter(Boolean);
-    onSave(s=> ({...s,
-      pattern:{...s.pattern, start, turno, enabled},
-      colors:{...s.colors, ...colors},
-      holidays
-    }));
-    onClose();
-  }
-  const colorValues = new Set();
-  const duplicated = Object.entries(colors).some(([k,v])=>{
-    if(k==='patternGuardiaBg' || k==='selected' || k==='today') return false;
-    if(colorValues.has(v)) return true; colorValues.add(v); return false;
+  sel.addEventListener('change',()=>{
+    estado = sel.value;
+    const needWho = ['cubro_guardia','me_cubre_guardia','cubro_recargo','me_cubre_recargo'].includes(estado);
+    who.style.display = needWho? 'block':'none';
+    art.style.display = estado==='art' ? 'block':'none';
   });
 
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={e=>e.stopPropagation()}>
-        <h3 className="text-lg font-semibold mb-2">Ajustes</h3>
-        <div className="grid gap-3">
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-sm">Inicio patrón (día guardia)</label>
-            <input type="date" value={start} onChange={e=>setStart(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-            <label className="text-sm">Turno</label>
-            <select value={turno} onChange={e=>setTurno(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">
-              <option>A</option><option>B</option><option>C</option>
-            </select>
-            <label className="text-sm">Patrón 24×48</label>
-            <input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="text-sm opacity-80 col-span-2">Colores por estado (sin repetir):</div>
-            {['guardia','recargo','art','licencia'].map(key=>(
-              <React.Fragment key={key}>
-                <label className="text-sm capitalize">{key}</label>
-                <input type="color" value={colors[key]} onChange={e=>setColors(c=>({...c,[key]:e.target.value}))}/>
-              </React.Fragment>
-            ))}
-            <label className="text-sm">Fondo patrón guardia</label>
-            <input type="text" value={colors.patternGuardiaBg} onChange={e=>setColors(c=>({...c,patternGuardiaBg:e.target.value}))} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-            <label className="text-sm">Borde hoy</label>
-            <input type="color" value={colors.today} onChange={e=>setColors(c=>({...c,today:e.target.value}))}/>
-            <label className="text-sm">Selección</label>
-            <input type="color" value={colors.selected} onChange={e=>setColors(c=>({...c,selected:e.target.value}))}/>
-          </div>
-          {duplicated && <div className="text-amber-400 text-xs">Aviso: hay colores repetidos entre estados.</div>}
-
-          <div>
-            <div className="text-sm mb-1">Feriados (uno por línea, formato YYYY-MM-DD)</div>
-            <textarea rows="4" value={holidaysTxt} onChange={e=>setHolidaysTxt(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <button className="btn bg-slate-700" onClick={onClose}>Cerrar</button>
-            <button className="btn bg-emerald-600" onClick={save}>Guardar</button>
-          </div>
-        </div>
-      </div>
-    </div>
+  mc.append(
+    el('div',{style:{marginBottom:'6px',opacity:.85}}, k),
+    sel, who, art,
+    el('label',{style:{display:'flex',alignItems:'center',gap:'6px',marginTop:'6px'}}, cbPago, '💲'),
+    el('label',{style:{display:'flex',alignItems:'center',gap:'6px'}}, cbSwap, '🔄'),
+    ln,
+    el('div',{style:{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'12px'}},
+      el('button',{class:'btn',onclick:()=>mb.remove()},'Cancelar'),
+      el('button',{class:'btn emerald',onclick:()=>{
+        if(estado==='licencia'){ mb.remove(); openLicencia(k); return; }
+        setEstadoExclusivo(k,{estado,pago,swap,linkedDate:ln.value||"", artNum: art.value||""});
+        mb.remove();
+      }}, estado==='licencia'?'Licencia…':'Guardar')
+    )
   );
+  document.body.append(mb);
 }
 
-/* ===== Notas ===== */
-function NotesScreen({store,setStore}){
-  const [items,setItems] = useState(store.notes||[]);
-  const [type,setType] = useState('sueldo');
-  const [date,setDate] = useState(ymd(new Date()));
-  const [text,setText] = useState('');
-  useEffect(()=> setItems(store.notes||[]), [store.notes]);
-  function add(){ const n=[...items, {type,date,text,id:crypto.randomUUID?.()||String(Date.now())}]; setItems(n); setStore(s=>({...s, notes:n})); }
-  function del(id){ const n=items.filter(x=>x.id!==id); setItems(n); setStore(s=>({...s, notes:n})); }
-  return (
-    <div className="flex-1 overflow-y-auto p-3">
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-3">
-        <select value={type} onChange={e=>setType(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">
-          <option value="sueldo">Día de paga (sueldo)</option>
-          <option value="pago_recargos">Pagos de recargos</option>
-          <option value="art">ART Nº</option>
-          <option value="licencia">Licencia (rango de días)</option>
-          <option value="aguinaldo">Pago aguinaldo</option>
-          <option value="texto">Texto a elección</option>
-        </select>
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-        <input placeholder="Detalle / nº / rango" value={text} onChange={e=>setText(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-        <button onClick={add} className="px-3 py-2 rounded-xl bg-emerald-600">Agregar</button>
-      </div>
-      <div className="space-y-2">
-        {items.map(it=> (
-          <div key={it.id} className="bg-slate-800 rounded-xl p-3 flex items-start gap-2">
-            <div className="text-xs px-2 py-1 rounded bg-sky-700 capitalize">{it.type}</div>
-            <div className="text-sm flex-1">
-              <div className="opacity-80">{it.date}</div>
-              <div>{it.text}</div>
-            </div>
-            <button className="px-2 rounded bg-rose-600" onClick={()=>del(it.id)}>✕</button>
-          </div>
-        ))}
-      </div>
-    </div>
+function openLicencia(fromKey){
+  const mb = el('div',{class:'mb',onclick:(e)=>{ if(e.target===mb) mb.remove(); }});
+  const mc = el('div',{class:'mc'});
+  mb.append(mc);
+
+  let mode='rango', hasta='', corridos='', habiles='', excluir=true;
+
+  const rR = el('input',{type:'radio',name:'m',checked:true,onchange:()=>mode='rango'});
+  const rC = el('input',{type:'radio',name:'m',onchange:()=>mode='calculo'});
+  const inpHasta = el('input',{type:'date',value:hasta,onchange:e=>hasta=e.target.value,style:{width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}});
+  const inpCorr = el('input',{type:'number',min:'0',value:corridos,onchange:e=>corridos=e.target.value,style:{width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}});
+  const inpHabi = el('input',{type:'number',min:'0',value:habiles,onchange:e=>habiles=e.target.value,style:{width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}});
+  const cbFe = el('input',{type:'checkbox',checked:excluir,onchange:e=>excluir=e.target.checked});
+
+  const cont = el('div',{},
+    el('div',{style:{marginBottom:'6px'}}, `Licencia desde ${fromKey}`),
+    el('div',{style:{marginBottom:'8px'}},
+      el('label',{style:{marginRight:'12px'}}, rR, ' Por rango'),
+      el('label',{}, rC, ' Por días')
+    ),
+    el('div',{id:'rng'}, el('label',{}, 'Hasta:'), inpHasta),
+    el('div',{id:'cal',style:{display:'none',marginTop:'8px'}},
+      el('label',{},'Días corridos:'), inpCorr,
+      el('label',{},'Días hábiles:'), inpHabi,
+      el('label',{style:{display:'flex',alignItems:'center',gap:'6px',marginTop:'6px'}}, cbFe, 'Excluir feriados (Ajustes)')
+    )
   );
-}
+  rR.addEventListener('change',()=>{ $('#rng',mc)?.style&&(cont.querySelector('#rng').style.display='block'); cont.querySelector('#cal').style.display='none'; });
+  rC.addEventListener('change',()=>{ cont.querySelector('#rng').style.display='none'; cont.querySelector('#cal').style.display='block'; });
 
-/* ===== Inputs ===== */
-function Field({label, ...props}){
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="opacity-80">{label}</span>
-      <input {...props} className={`bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 ${props.className||""}`}/>
-    </label>
+  mc.append(
+    cont,
+    el('div',{style:{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'12px'}},
+      el('button',{class:'btn',onclick:()=>mb.remove()},'Cancelar'),
+      el('button',{class:'btn emerald',onclick:()=>{
+        let keys=[];
+        if(mode==='rango' && inpHasta.value){
+          keys = expandLicenseByDates(fromKey, inpHasta.value);
+        }else{
+          if(Number(inpCorr.value)>0) keys = keys.concat(expandLicenseByCalendarDays(fromKey, Number(inpCorr.value)));
+          if(Number(inpHabi.value)>0){
+            const set = new Set(excluir? S.holidays: []);
+            keys = keys.concat(expandLicenseByWorkingDays(fromKey, Number(inpHabi.value), set, true));
+          }
+        }
+        const days = {...S.days};
+        for(const k of keys){ days[k] = {...(days[k]||emptyDay(k)), estado:'licencia', pago:false, swap:false, linkedDate:"", linkedType:""}; }
+        S.days = days; saveState(); mb.remove(); render();
+      }},'Aplicar')
+    )
   );
+  document.body.append(mb);
 }
-function TextArea({label, ...props}){
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="opacity-80">{label}</span>
-      <textarea {...props} rows={3} className={`bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 ${props.className||""}`}/>
-    </label>
+
+function openSettings(){
+  const mb = el('div',{class:'mb',onclick:(e)=>{ if(e.target===mb) mb.remove(); }});
+  const mc = el('div',{class:'mc'});
+  mb.append(mc);
+
+  let start=S.pattern.start||"", turno=S.pattern.turno||"B", enabled=!!S.pattern.enabled;
+  let colors={...S.colors};
+  let holidaysTxt=(S.holidays||[]).join('\n');
+
+  const inStart = el('input',{type:'date',value:start,onchange:e=>start=e.target.value});
+  const selTurno = el('select',{}, ...['A','B','C'].map(x=>el('option',{value:x,selected:x===turno},x)));
+  const cbEnabled = el('input',{type:'checkbox',checked:enabled,onchange:e=>enabled=e.target.checked});
+
+  const colorKeys=['guardia','recargo','art','licencia'];
+  const colorInputs = {};
+  for(const k of colorKeys){ colorInputs[k]=el('input',{type:'color',value:colors[k],onchange:e=>{colors[k]=e.target.value;}}); }
+  const inpPat = el('input',{value:colors.patternGuardiaBg,onchange:e=>colors.patternGuardiaBg=e.target.value});
+  const inpSel = el('input',{type:'color',value:colors.selected,onchange:e=>colors.selected=e.target.value});
+  const inpToday = el('input',{type:'color',value:colors.today,onchange:e=>colors.today=e.target.value});
+  const taHol = el('textarea',{rows:'4',value:holidaysTxt,oninput:e=>holidaysTxt=e.target.value,style:{width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}});
+
+  mc.append(
+    el('h3',{},'Ajustes'),
+    el('div',{class:'row cols2',style:{marginTop:'6px'}},
+      el('label',{},'Inicio patrón (día guardia)'), inStart,
+      el('label',{},'Turno'), selTurno,
+      el('label',{},'Patrón 24×48'), el('div',{}, cbEnabled)
+    ),
+    el('div',{class:'row cols2',style:{marginTop:'6px'}},
+      el('div',{style:{gridColumn:'1 / -1',color:'#93a4bf',fontSize:'12px'}},'Colores por estado (no repetir):'),
+      ...colorKeys.flatMap(k=>[ el('label',{},k), colorInputs[k] ]),
+      el('label',{},'Fondo patrón guardia'), inpPat,
+      el('label',{},'Borde hoy'), inpToday,
+      el('label',{},'Selección'), inpSel
+    ),
+    el('div',{style:{marginTop:'8px'}},
+      el('div',{style:{marginBottom:'4px'}}, 'Feriados (YYYY-MM-DD, uno por línea)'),
+      taHol
+    ),
+    el('div',{style:{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'10px'}},
+      el('button',{class:'btn',onclick:()=>mb.remove()},'Cerrar'),
+      el('button',{class:'btn emerald',onclick:()=>{
+        S.pattern={start,turno,enabled};
+        S.colors={...S.colors,...colors};
+        S.holidays = holidaysTxt.split(/\s+/).map(s=>s.trim()).filter(Boolean);
+        saveState(); mb.remove(); render();
+      }},'Guardar')
+    )
   );
+  document.body.append(mb);
 }
 
-/* ===== Boot ===== */
-function Root(){
-  const storeHook = useStore(); // [store, setStore]
-  return (
-    <StoreCtx.Provider value={storeHook}>
-      <App/>
-    </StoreCtx.Provider>
+function openNotes(){
+  const mb = el('div',{class:'mb',onclick:(e)=>{ if(e.target===mb) mb.remove(); }});
+  const mc = el('div',{class:'mc'}); mb.append(mc);
+
+  const type = el('select',{}, ...[
+    ['sueldo','Día de paga (sueldo)'],
+    ['pago_recargos','Pagos de recargos'],
+    ['art','ART Nº'],
+    ['licencia','Licencia (rango de días)'],
+    ['aguinaldo','Pago aguinaldo'],
+    ['texto','Texto a elección'],
+  ].map(([v,t])=>el('option',{value:v},t)));
+  const date = el('input',{type:'date',value:ymd(new Date())});
+  const text = el('input',{placeholder:'Detalle / nº / rango',style:{width:'100%',background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}});
+  const list = el('div',{class:'tbl',style:{marginTop:'8px'}});
+
+  function refresh(){
+    list.innerHTML='';
+    for(const n of S.notes){
+      list.append(
+        el('div',{class:'card',style:{padding:'.5rem .75rem',display:'flex',gap:'8px',alignItems:'flex-start'}},
+          el('div',{class:'badge'}, n.type),
+          el('div',{}, el('div',{class:'muted',style:{fontSize:'12px'}}, n.date), el('div',{}, n.text||'')),
+          el('div',{style:{marginLeft:'auto'}}, el('button',{class:'btn rose',onclick:()=>{ S.notes=S.notes.filter(x=>x!==n); saveState(); refresh(); }},'✕'))
+        )
+      );
+    }
+  }
+  refresh();
+
+  mc.append(
+    el('h3',{},'Notas'),
+    el('div',{class:'row cols4',style:{marginTop:'6px'}},
+      el('label',{},'Tipo'), type,
+      el('label',{},'Fecha'), date,
+      el('label',{style:{gridColumn:'1 / -1'}}, 'Detalle'), text
+    ),
+    el('div',{style:{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'10px'}},
+      el('button',{class:'btn emerald',onclick:()=>{ S.notes=[...(S.notes||[]), {id:Date.now().toString(36), type:type.value, date:date.value, text:text.value}]; saveState(); refresh(); }},'Agregar')
+    ),
+    el('div',{style:{marginTop:'10px'}}, list)
   );
+  document.body.append(mb);
 }
-ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
-</script>
 
-<script>
-/* Manifest dinámico */
-const manifest = {
-  name: "Guardias 24×48",
-  short_name: "Guardias",
-  start_url: ".",
-  display: "standalone",
-  background_color: "#0f172a",
-  theme_color: "#0ea5e9",
-  icons: [
-    { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII=", sizes:"192x192", type:"image/png" },
-    { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII=", sizes:"512x512", type:"image/png" }
-  ]
-};
-const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
-const url = URL.createObjectURL(blob);
-document.getElementById('mf').setAttribute('href', url);
+/* ============= Día (pantalla completa) ============= */
+function openDay(key){
+  SELECTED = key;
+  const d = getDay(key);
+  const root = $('#app'); root.innerHTML='';
 
-/* Service Worker in-page (solo https/localhost) */
-const canUseSW = 'serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost');
-if (canUseSW) {
-  const swCode = `
-const CACHE = 'guardias-pwa-v4';
-self.addEventListener('install', e=>{ e.waitUntil((async()=>{ const c=await caches.open(CACHE); await c.addAll(['./','./index.html']); })()); self.skipWaiting(); });
-self.addEventListener('activate', e=>{ e.waitUntil(self.clients.claim()); });
-self.addEventListener('fetch', e=>{ if(e.request.method!=='GET') return;
-  e.respondWith((async()=>{ const c=await caches.open(CACHE); const m=await c.match(e.request); if(m) return m;
-    try{ const r=await fetch(e.request); try{ await c.put(e.request, r.clone()); }catch{} return r; }
-    catch(err){ const shell=await c.match('./'); if(shell) return shell; throw err; }
-  })());
-});`;
-  const swBlob = new Blob([swCode], {type:'text/javascript'});
-  navigator.serviceWorker.register(URL.createObjectURL(swBlob));
-} else {
-  console.log('Modo sin SW (SPCK/preview). En HTTPS se activa offline.');
+  // Top bar
+  root.append(
+    el('div',{class:'bar'},
+      el('button',{class:'btn',onclick:()=>{ render(); }}, '←'),
+      el('div',{class:'title'}, fmtFull.format(parseYMD(key))),
+      el('div',{},'')
+    )
+  );
+
+  // Tabs
+  let tab='guardia';
+  const tabs = el('div',{class:'pad',style:{display:'flex',gap:'8px'}},
+    el('button',{class:'btn',id:'t-guardia',onclick:()=>{tab='guardia'; refreshTab();}},'Guardia'),
+    el('button',{class:'btn',id:'t-poblacion',onclick:()=>{tab='poblacion'; refreshTab();}},'Población')
+  );
+  root.append(tabs);
+
+  // Collapsible header
+  const P = d.poblacion||{};
+  const sum = ()=>`Pab: ${d.pabellon||'-'} · Pob: ${P.total||'-'} · Cond: ${P.condenados||'-'} · Proc: ${P.procesados||'-'}`;
+  const coll = el('div',{class:'pad'},
+    el('div',{class:'coll'},
+      el('button',{class:'colh',onclick:()=>{ body.style.display = body.style.display==='none'?'block':'none'; head.textContent = (body.style.display==='none'?'► Mostrar — ':'▼ Ocultar — ') + sum(); }},
+        ( '▼ Ocultar — ' + sum())
+      ),
+      body = el('div',{class:'cold'})
+    )
+  );
+  const head = coll.querySelector('.colh'); let body;
+  body.append(
+    // Header fields (incluye Rol SOLO aquí)
+    row3(
+      field('Pabellón', d.pabellon, v=>upd({pabellon:v})),
+      field('Población total', P.total, v=>upd({poblacion:{...P,total:v}}),'number'),
+      field('Presentes', P.presentes, v=>upd({poblacion:{...P,presentes:v}}),'number')
+    ),
+    row3(
+      field('Condenados', P.condenados, v=>upd({poblacion:{...P,condenados:v}}),'number'),
+      field('Procesados', P.procesados, v=>upd({poblacion:{...P,procesados:v}}),'number'),
+      field('Hospitalizados', P.hospitalizados, v=>upd({poblacion:{...P,hospitalizados:v}}),'number')
+    ),
+    row3(
+      field('Rol (Celador/Auxiliar)', d.role, v=>upd({role:v})),
+      field('Acompañado por (coma separada)', d.companeros, v=>upd({companeros:v})),
+      field('Notas', d.notas, v=>upd({notas:v}), 'textarea')
+    )
+  );
+  root.append(coll);
+
+  // Content area
+  const content = el('div',{class:'pad scroll',style:{flex:'1 1 auto'}});
+  root.append(content);
+
+  function refreshTab(){
+    $('#t-guardia').classList.toggle('emerald', tab==='guardia');
+    $('#t-poblacion').classList.toggle('emerald', tab==='poblacion');
+    content.innerHTML='';
+    if(tab==='guardia') content.append(viewMovimientos(key));
+    else content.append(viewPoblacion(key));
+  }
+  refreshTab();
+
+  function upd(patch){
+    S.days[key] = {...getDay(key), ...patch}; saveState();
+  }
 }
+
+function viewMovimientos(key){
+  const d = getDay(key); const rows = d.movimientos||[];
+  const wrap = el('div',{class:'card',style:{padding:'.75rem'}});
+  wrap.append(headerRow(['Objeto','Entrada','Salida','Movimiento','A cargo de']));
+
+  const tbl = el('div',{class:'tbl'});
+  wrap.append(tbl);
+
+  function draw(){
+    tbl.innerHTML='';
+    rows.forEach((r,i)=>{
+      tbl.append(
+        el('div',{class:'row cols5',style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 2fr 2fr',gap:'.25rem'}},
+          autoCell(r.objeto, v=>{r.objeto=v; save();}),
+          inp(r.entrada||'', v=>{r.entrada=v; save();}, 'text'),
+          inp(r.salida||'', v=>{r.salida=v; save();}, 'text'),
+          inp(r.movimiento||'', v=>{r.movimiento=v; save();}, 'text'),
+          el('div',{style:{display:'flex',gap:'.25rem'}},
+            inp(r.a_cargo||'', v=>{r.a_cargo=v; save();}, 'text',{style:{flex:'1 1 auto'}}),
+            el('button',{class:'btn rose',onclick:()=>{ rows.splice(i,1); save(true); }},'✕')
+          )
+        )
+      );
+    });
+  }
+  draw();
+
+  function save(redraw){
+    S.days[key] = {...getDay(key), movimientos: rows}; saveState(); if(redraw) draw();
+  }
+  wrap.append(el('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'.5rem'}},
+    el('button',{class:'btn emerald',onclick:()=>{ rows.push({objeto:'',entrada: nowHHMM(), salida:'', movimiento:'', a_cargo:''}); save(true); }},'Agregar fila')
+  ));
+  return wrap;
+}
+
+function viewPoblacion(key){
+  const d = getDay(key); const rows = d.poblacionListado||[];
+  const wrap = el('div',{class:'card',style:{padding:'.75rem'}});
+  const P=d.poblacion||{};
+
+  // Aviso si no coincide
+  const tot = rows.length, cond = rows.filter(x=>x.cp==='C').length, proc = rows.filter(x=>x.cp==='P').length;
+  const mismatch = (P.total && Number(P.total)!==tot) || (P.condenados && Number(P.condenados)!==cond) || (P.procesados && Number(P.procesados)!==proc);
+  if(mismatch) wrap.append(el('div',{class:'muted',style:{color:'#fbbf24',fontSize:'12px',marginBottom:'.25rem'}},'Aviso: los totales de cabecera no coinciden con el detalle.'));
+
+  wrap.append(headerRow(['Matrícula','C/P','Apellido y Nombre']));
+  const tbl = el('div',{class:'tbl'}); wrap.append(tbl);
+
+  function draw(){
+    tbl.innerHTML='';
+    rows.forEach((r,i)=>{
+      tbl.append(
+        el('div',{class:'row cols3'},
+          inp(r.matricula||'', v=>{r.matricula=v; save();}),
+          sel(r.cp||'C', v=>{r.cp=v; save();}, [['C','C'],['P','P']]),
+          el('div',{style:{display:'flex',gap:'.25rem'}},
+            inp(r.nombre||'', v=>{r.nombre=v; save();}, 'text', {style:{flex:'1 1 auto'}}),
+            el('button',{class:'btn rose',onclick:()=>{ rows.splice(i,1); save(true); }},'✕')
+          )
+        )
+      );
+    });
+  }
+  draw();
+
+  function save(redraw){ S.days[key] = {...getDay(key), poblacionListado: rows}; saveState(); if(redraw) draw(); }
+  wrap.append(el('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'.5rem'}},
+    el('button',{class:'btn emerald',onclick:()=>{ rows.push({matricula:'',cp:'C',nombre:''}); save(true); }},'Agregar interno')
+  ));
+  return wrap;
+}
+
+/* ====== widgets auxiliares ====== */
+function field(label, value, on, type='text'){
+  if(type==='textarea'){
+    const ta=el('textarea',{rows:'3',class:'field-ta',oninput:e=>on(e.target.value)}); ta.value=value||'';
+    return el('label',{class:'field'}, el('span',{class:'muted'},label), ta);
+  }
+  const i=el('input',{value:value||'',oninput:e=>on(e.target.value),type}); 
+  return el('label',{class:'field'}, el('span',{class:'muted'},label), i);
+}
+function row3(...kids){ return el('div',{class:'row cols3'}, ...kids); }
+function headerRow(cols){ 
+  const h=el('div',{class:'thead',style:{gridTemplateColumns:`repeat(${cols.length}, minmax(0,1fr))`}}, ...cols.map(c=>el('div',{},c))); 
+  return h;
+}
+function inp(val,on,type='text',extra={}){
+  const i=el('input',{value:val||'',type,oninput:e=>on(e.target.value),style:{background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem',...(extra.style||{})}});
+  return i;
+}
+function sel(val,on,opts){
+  const s=el('select',{onchange:e=>on(e.target.value),style:{background:'#0c172b',border:'1px solid var(--line)',borderRadius:'12px',padding:'.5rem .75rem'}},
+    ...opts.map(([v,t])=>el('option',{value:v,selected:v===val},t))
+  );
+  return s;
+}
+/* Autocomplete que aprende */
+function autoCell(value,onChange){
+  const box = el('div',{class:'auto'});
+  const input = inp(value||'', v=>{ query=v; onChange(v); openList(); });
+  input.setAttribute('placeholder','Recuento, Servicio médico…');
+  box.append(input);
+
+  let open=false, query=value||'';
+  const list = el('div',{class:'alist',style:{display:'none'}});
+  box.append(list);
+
+  function openList(){
+    const base = S.suggestions||[];
+    const q=(query||'').toLowerCase();
+    const items = q? base.filter(s=> s.toLowerCase().includes(q)).slice(0,20) : base.slice(0,20);
+    list.innerHTML='';
+    if(items.length===0){ list.style.display='none'; return; }
+    items.forEach(s=> list.append(el('div',{class:'aitem',onmousedown:()=>commit(s)},s)) );
+    list.style.display='block';
+  }
+  function commit(val){
+    input.value = val; onChange(val); list.style.display='none';
+    if(val && !S.suggestions.includes(val)){ S.suggestions = [...S.suggestions, val].slice(-200); saveState(); }
+  }
+  input.addEventListener('focus',()=>openList());
+  input.addEventListener('blur',()=>setTimeout(()=>list.style.display='none',150));
+
+  return box;
+}
+
+/* ================== Boot ================== */
+loadState().then(()=>{ render(); });
 </script>
 </body>
 </html>
