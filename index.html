@@ -739,5 +739,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(<Root/>);
     navigator.serviceWorker.register('./sw.js');
   }
 </script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+  }
+</script>
 </body>
 </html>
