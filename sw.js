@@ -1,35 +1,53 @@
-const CACHE_NAME = "guardias-cache-v2";
-const urlsToCache = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./main.js",
-  "./manifest.json"
-];
+const CACHE = 'guardias-pwa-v7';
+const base = self.registration.scope;
+const abs = (p) => new URL(p, base).toString();
 
-// Instalar SW y guardar en caché
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
-  );
+const PRECACHE = [
+  '',              // raíz (index.html)
+  'index.html',
+  'manifest.json',
+  'icons/icon-192.png',
+  'icons/icon-512.png'
+].map(abs);
+
+self.addEventListener('install', (event) => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    for (const url of PRECACHE) {
+      try {
+        const res = await fetch(url, { cache: 'reload' });
+        if (res && res.ok) await cache.put(url, res.clone());
+      } catch (_) {}
+    }
+  })());
+  self.skipWaiting();
 });
 
-// Activar SW y limpiar cachés viejas
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.map(key => {
-        if (key !== CACHE_NAME) return caches.delete(key);
-      }))
-    )
-  );
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
 });
 
-// Interceptar requests
-self.addEventListener("fetch", event => {
-  event.respondWith(
-    caches.match(event.request).then(response => 
-      response || fetch(event.request)
-    )
-  );
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(req);
+    if (cached) return cached;
+
+    try {
+      const res = await fetch(req);
+      if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) {
+        try { await cache.put(req, res.clone()); } catch (_) {}
+      }
+      return res;
+    } catch (err) {
+      if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
+        const shell = await cache.match(abs('index.html'));
+        if (shell) return shell;
+      }
+      throw err;
+    }
+  })());
 });
