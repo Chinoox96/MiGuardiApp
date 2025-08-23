@@ -1,135 +1,711 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Guardias 24x48</title>
-  <meta name="theme-color" content="#0f172a" />
-
-  <!-- Manifest externo -->
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icons/icon-192.png" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
-
-  <!-- Estilos básicos embebidos -->
-  <style>
-    body {
-      margin:0; font-family:sans-serif; background:#0f172a; color:#f1f5f9;
-    }
-    header {
-      display:flex; align-items:center; justify-content:space-between;
-      padding:8px 12px; background:#0b1220; border-bottom:1px solid #1f2937;
-    }
-    button {
-      background:#1e293b; color:#f1f5f9; border:none; padding:6px 12px;
-      border-radius:8px; cursor:pointer;
-    }
-    button:active { background:#334155; }
-    .calendar { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:8px; }
-    .day { aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
-      border-radius:6px; background:#1e293b; font-size:14px; cursor:pointer; }
-    .day.today { outline:2px solid #34d399; }
-    .day.selected { outline:2px solid #22c55e; }
-    .tabs { display:flex; gap:8px; padding:8px; }
-    .tab { flex:1; text-align:center; padding:8px; border-radius:8px; cursor:pointer; }
-    .tab.active { background:#0284c7; }
-    .content { padding:8px; }
-    input, select {
-      margin:4px 0; padding:4px; border-radius:4px; border:1px solid #334155;
-      background:#0f172a; color:#f1f5f9;
-    }
-    table { border-collapse:collapse; width:100%; margin-top:8px; }
-    th, td { border:1px solid #334155; padding:6px; text-align:left; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Guardias 24×48</title>
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root{
+    --bg:#0f172a; --bg2:#0b1220; --card:#1e293b; --muted:#334155;
+    --txt:#e5e7eb; --acc:#0284c7; --ok:#10b981; --warn:#eab308; --err:#ef4444;
+    --ring-today:#34d399; --ring-sel:#22c55e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column}
+  header.app{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg2);border-bottom:1px solid #1f2937}
+  .btn{background:var(--card);border:none;color:var(--txt);padding:6px 12px;border-radius:10px;cursor:pointer}
+  .btn:active{filter:brightness(1.1)}
+  .btn.primary{background:#0ea5e9}
+  .btn.success{background:var(--ok)}
+  .wrap{flex:1;display:flex;flex-direction:column;min-height:0}
+  .row{display:flex;gap:8px;align-items:center}
+  .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:10px}
+  .weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 10px;color:#9ca3af;font-size:12px}
+  .day{aspect-ratio:1/1;border-radius:12px;background:var(--card);display:flex;flex-direction:column;justify-content:space-between;padding:6px;cursor:pointer}
+  .day .n{font-size:12px;opacity:.9}
+  .day .badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+  .badge{font-size:10px;padding:2px 6px;border-radius:9999px;background:#111827}
+  .today{box-shadow:inset 0 0 0 2px var(--ring-today)}
+  .selected{outline:2px solid var(--ring-sel)}
+  .summary{margin:0 10px 6px;background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:8px 10px;font-size:13px}
+  .tabs{display:flex;gap:8px;padding:10px}
+  .tab{flex:1;text-align:center;padding:10px;border-radius:9999px;background:var(--card);cursor:pointer}
+  .tab.active{background:#0284c7}
+  .content{flex:1;min-height:0;overflow:auto;padding:10px}
+  .panel{border:1px solid #1f2937;border-radius:12px;overflow:hidden;margin-bottom:10px}
+  .panel > .head{padding:8px 10px;background:#0b1220;cursor:pointer}
+  .panel > .body{padding:10px;background:#0f172a}
+  input,select,textarea{width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;color:var(--txt);padding:8px}
+  textarea{min-height:70px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .table{width:100%;border-collapse:collapse}
+  .table th,.table td{border:1px solid #334155;padding:6px;background:#0f172a}
+  .foot-right{display:flex;justify-content:flex-end;margin-top:8px}
+  /* Modales */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px;z-index:50}
+  .modal{width:100%;max-width:520px;background:#0b1220;border:1px solid #1f2937;border-radius:16px;padding:14px}
+  .muted{color:#9ca3af}
+  /* Autocomplete */
+  .auto{position:relative}
+  .auto-list{position:absolute;left:0;right:0;top:100%;background:#0b1220;border:1px solid #1f2937;border-radius:12px;max-height:220px;overflow:auto;z-index:5}
+  .auto-item{padding:8px 10px;cursor:pointer}
+  .auto-item:hover{background:#111a2b}
+  /* Toast */
+  .toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#111827;color:#e5e7eb;padding:8px 12px;border-radius:10px;border:1px solid #1f2937;z-index:60}
+</style>
 </head>
 <body>
-  <header>
-    <button id="prev">◀</button>
-    <div id="monthLabel">Mes Año</div>
-    <button id="next">▶</button>
-  </header>
+<header class="app">
+  <button class="btn" id="btnPrev">◀</button>
+  <div style="flex:1;text-align:center" id="lblMonth">Mes</div>
+  <button class="btn" id="btnNext">▶</button>
+  <button class="btn" id="btnNotes">Notas</button>
+  <button class="btn success" id="btnSettings">Ajustes</button>
+</header>
 
-  <div class="calendar" id="calendar"></div>
+<div class="wrap" id="app">
+  <!-- resumen seleccionado -->
+  <div class="summary" id="daySummary" style="display:none"></div>
 
-  <div class="tabs">
-    <div id="tab-guardia" class="tab active">Guardia</div>
-    <div id="tab-poblacion" class="tab">Población</div>
+  <!-- cabecera semana -->
+  <div class="weekdays">
+    <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
   </div>
-  <div class="content" id="tabContent"></div>
+  <!-- calendario -->
+  <div class="calendar" id="cal"></div>
 
-  <!-- Script de la App -->
-  <script>
-    const calendarEl = document.getElementById('calendar');
-    const monthLabel = document.getElementById('monthLabel');
-    const tabContent = document.getElementById('tabContent');
-    const today = new Date(); today.setHours(0,0,0,0);
-    let selectedDate = today;
-    let cursor = new Date(today.getFullYear(), today.getMonth(), 1);
-    let activeTab = 'guardia';
+  <!-- contenedor pantallas -->
+  <div class="content" id="screen" style="display:none"></div>
+</div>
 
-    function ymd(d){ return d.toISOString().slice(0,10); }
+<!-- ========= Modales ========= -->
+<div class="modal-bg" id="modalQuick" style="display:none">
+  <div class="modal">
+    <div class="muted" id="quickDate"></div>
+    <div class="grid2" style="margin-top:8px">
+      <label>Estado
+        <select id="qEstado">
+          <option value="">(sin estado)</option>
+          <option value="guardia">Guardia</option>
+          <option value="recargo">Recargo</option>
+          <option value="cubro_guardia">Cubro guardia a…</option>
+          <option value="me_cubre_guardia">Me cubre guardia…</option>
+          <option value="cubro_recargo">Cubro recargo a…</option>
+          <option value="me_cubre_recargo">Me cubre recargo…</option>
+          <option value="art">ART Nº…</option>
+          <option value="licencia">Licencia…</option>
+        </select>
+      </label>
+      <label>Persona (si aplica)
+        <input id="qPersona" placeholder="Apellido / Nombre">
+      </label>
+    </div>
+    <div class="row" style="gap:16px;margin-top:8px">
+      <label class="row" style="gap:6px"><input type="checkbox" id="qPago"> 💲</label>
+      <label class="row" style="gap:6px"><input type="checkbox" id="qSwap"> 🔄</label>
+      <input type="date" id="qLinked" style="display:none">
+    </div>
+    <div class="foot-right">
+      <button class="btn" id="qCancel">Cancelar</button>
+      <button class="btn primary" id="qLicense" style="display:none;margin-left:8px">Licencia…</button>
+      <button class="btn success" id="qSave" style="margin-left:8px">Guardar</button>
+    </div>
+  </div>
+</div>
 
-    function renderCalendar(){
-      calendarEl.innerHTML = '';
-      monthLabel.textContent = cursor.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-      const start = new Date(cursor.getFullYear(), cursor.getMonth(),1);
-      const startDay = (start.getDay()+6)%7; // lunes=0
-      const first = new Date(start); first.setDate(first.getDate()-startDay);
-      for(let i=0;i<42;i++){
-        const d = new Date(first); d.setDate(first.getDate()+i);
-        const div = document.createElement('div');
-        div.className='day';
-        if(d.toDateString()===today.toDateString()) div.classList.add('today');
-        if(d.toDateString()===selectedDate.toDateString()) div.classList.add('selected');
-        div.textContent=d.getDate();
-        div.onclick=()=>{ selectedDate=d; renderCalendar(); renderTab(); };
-        calendarEl.appendChild(div);
-      }
+<div class="modal-bg" id="modalLicense" style="display:none">
+  <div class="modal">
+    <div class="muted">Licencia desde <span id="licFrom"></span></div>
+    <div class="row" style="gap:16px;margin:8px 0">
+      <label><input type="radio" name="licMode" value="rango" checked> Por rango</label>
+      <label><input type="radio" name="licMode" value="calculo"> Por días</label>
+    </div>
+    <div id="licRange" class="grid2">
+      <label>Hasta <input type="date" id="licHasta"></label>
+    </div>
+    <div id="licCalc" class="grid2" style="display:none">
+      <label>Días corridos <input type="number" id="licCorridos" min="0" value="0"></label>
+      <label>Días hábiles <input type="number" id="licHabiles" min="0" value="0"></label>
+      <label class="row" style="grid-column:1/-1;gap:6px"><input type="checkbox" id="licExFeriados" checked> Excluir feriados</label>
+    </div>
+    <div class="foot-right">
+      <button class="btn" id="licCancel">Cancelar</button>
+      <button class="btn success" id="licApply" style="margin-left:8px">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalSettings" style="display:none">
+  <div class="modal">
+    <h3 style="margin:0 0 8px">Ajustes</h3>
+    <div class="grid2">
+      <label>Patrón 24×48 <input type="checkbox" id="sPatronOn"></label>
+      <span></span>
+      <label>Inicio (día guardia) <input type="date" id="sStart"></label>
+      <label>Turno
+        <select id="sTurno"><option>A</option><option selected>B</option><option>C</option></select>
+      </label>
+    </div>
+    <div style="margin-top:10px" class="grid2">
+      <div class="muted" style="grid-column:1/-1">Colores por estado (no repetir):</div>
+      <label>Guardia <input type="color" id="cGuardia" value="#0ea5e9"></label>
+      <label>Recargo <input type="color" id="cRecargo" value="#eab308"></label>
+      <label>ART <input type="color" id="cArt" value="#ef4444"></label>
+      <label>Licencia <input type="color" id="cLicencia" value="#60a5fa"></label>
+      <label>Fondo patrón guardia <input id="cPatronBg" value="rgba(16,185,129,0.25)"></label>
+      <label>Borde hoy <input type="color" id="cToday" value="#34d399"></label>
+      <label>Selección <input type="color" id="cSelected" value="#22c55e"></label>
+    </div>
+    <div style="margin-top:10px">
+      <div class="muted">Feriados (YYYY-MM-DD, uno por línea)</div>
+      <textarea id="sFeriados" rows="4" placeholder="2025-01-01&#10;2025-03-24"></textarea>
+    </div>
+    <div class="foot-right">
+      <button class="btn" id="sClose">Cerrar</button>
+      <button class="btn success" id="sSave" style="margin-left:8px">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalNotes" style="display:none">
+  <div class="modal">
+    <h3 style="margin:0 0 8px">Notas</h3>
+    <div class="grid2">
+      <select id="nType">
+        <option value="sueldo">Día de paga (sueldo)</option>
+        <option value="pago_recargos">Pagos de recargos</option>
+        <option value="art">ART Nº</option>
+        <option value="licencia">Licencia (rango de días)</option>
+        <option value="aguinaldo">Pago aguinaldo</option>
+        <option value="texto">Texto a elección</option>
+      </select>
+      <input type="date" id="nDate">
+      <input placeholder="Detalle / nº / rango" id="nText" style="grid-column:1/-1">
+      <div class="foot-right" style="grid-column:1/-1">
+        <button class="btn success" id="nAdd">Agregar</button>
+      </div>
+    </div>
+    <div id="nList" style="margin-top:10px"></div>
+    <div class="foot-right">
+      <button class="btn" id="nClose">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" style="display:none"></div>
+
+<script>
+/* =================== Utils =================== */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const ymd = d => { const x=new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); };
+const parseYMD = s => { const [Y,m,d]=s.split('-').map(Number); const x=new Date(Y,m-1,d); x.setHours(0,0,0,0); return x; };
+const addDays = (d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const startOfMonth = d=> new Date(d.getFullYear(), d.getMonth(),1);
+const fmtMonth = new Intl.DateTimeFormat("es-AR",{month:"long",year:"numeric"});
+const fmtFull = new Intl.DateTimeFormat("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+const nowHHMM = ()=> { const n=new Date(); return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; };
+const isWeekend = d=> [0,6].includes(new Date(d).getDay());
+
+/* ================== Persistencia ================== */
+const LS_KEY = "guardias.pwa.v4";
+let STATE = null;
+
+// IndexedDB
+const IDB_NAME='guardias-db', IDB_STORE='state';
+function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbGet(key='singleton'){ try{ const db=await idbOpen(); return await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const st=tx.objectStore(IDB_STORE); const g=st.get(key); g.onsuccess=()=>res(g.result||null); g.onerror=()=>rej(g.error); }); }catch{ return null; } }
+async function idbSet(val,key='singleton'){ try{ const db=await idbOpen(); await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); const st=tx.objectStore(IDB_STORE); const p=st.put(val,key); p.onsuccess=()=>res(); p.onerror=()=>rej(p.error); }); }catch{} }
+
+function defState(){
+  return {
+    days:{}, // 'YYYY-MM-DD': Day
+    pattern:{enabled:false,start:"",turno:"B"},
+    colors:{
+      guardia:"#0ea5e9", recargo:"#eab308", art:"#ef4444", licencia:"#60a5fa",
+      patternGuardiaBg:"rgba(16,185,129,0.25)", selected:"#22c55e", today:"#34d399"
+    },
+    holidays:[],
+    notes:[],
+    objectSuggestions:[]
+  };
+}
+function loadState(){
+  try{ STATE = JSON.parse(localStorage.getItem(LS_KEY)||"null") || defState(); }
+  catch{ STATE = defState(); }
+}
+async function bootState(){
+  loadState();
+  const fromIDB = await idbGet();
+  if(fromIDB){ STATE = fromIDB; }
+  persist();
+}
+function persist(){
+  localStorage.setItem(LS_KEY, JSON.stringify(STATE));
+  idbSet(STATE);
+}
+
+/* ================== Data helpers ================== */
+function emptyDay(key){
+  return { key, pabellon:"", poblacion:{total:"",condenados:"",procesados:"",presentes:"",hospitalizados:""},
+    role:"", companeros:"", notas:"", // Rol solo aquí (no en ajustes)
+    estado:null, pago:false, swap:false, linkedDate:"", linkedType:"", persona:"",
+    movimientos:[], poblacionListado:[] };
+}
+function day(k){ return STATE.days[k] || emptyDay(k); }
+function saveDay(k,patch){ STATE.days[k] = {...day(k), ...patch}; persist(); }
+function setEstado(k,{estado=null,pago=false,swap=false,linkedDate="",persona=""}){
+  // 💲 XOR 🔄
+  if(pago && swap) pago=false;
+  const d = day(k);
+  // Espejo si hay swap
+  if(swap && linkedDate){
+    let tipoEsp="";
+    if(estado==='cubro_guardia') tipoEsp='me_cubre_guardia';
+    else if(estado==='me_cubre_guardia') tipoEsp='cubro_guardia';
+    else if(estado==='cubro_recargo') tipoEsp='me_cubre_recargo';
+    else if(estado==='me_cubre_recargo') tipoEsp='cubro_recargo';
+    if(tipoEsp){
+      saveDay(linkedDate, {estado:tipoEsp,pago,swap:true,linkedDate:k,linkedType:estado, persona});
+    }
+  }
+  saveDay(k,{estado,pago,swap,linkedDate,linkedType:"", persona});
+}
+function patternIsGuardia(d){
+  const p=STATE.pattern; if(!p.enabled||!p.start) return false;
+  const anchor=parseYMD(p.start);
+  const diff = Math.floor((parseYMD(ymd(d))-anchor)/86400000);
+  return (diff%3===0);
+}
+
+/* ====== Licencia expand ====== */
+function expandDates(startStr,endStr){
+  const out=[]; for(let d=parseYMD(startStr); d<=parseYMD(endStr); d=addDays(d,1)) out.push(ymd(d)); return out;
+}
+function expandCorridos(startStr,cnt){
+  const out=[]; let d=parseYMD(startStr); for(let i=0;i<cnt;i++){ out.push(ymd(addDays(d,i))); } return out;
+}
+function expandHabiles(startStr,cnt,holidaysSet,skipWeekends=true){
+  const out=[]; let d=parseYMD(startStr);
+  while(out.length<cnt){
+    const key=ymd(d);
+    const weekend = skipWeekends && isWeekend(d);
+    const holiday = holidaysSet.has(key);
+    if(!(weekend||holiday)){ out.push(key); }
+    d=addDays(d,1);
+  }
+  return out;
+}
+
+/* ================== App UI ================== */
+const lblMonth = $('#lblMonth');
+const cal = $('#cal');
+const daySummary = $('#daySummary');
+const screen = $('#screen');
+const btnPrev = $('#btnPrev'), btnNext=$('#btnNext'), btnNotes=$('#btnNotes'), btnSettings=$('#btnSettings');
+
+let today = new Date(); today.setHours(0,0,0,0);
+let cursor = startOfMonth(today);
+let selected = ymd(today);
+let activeScreen = ''; // '', 'day', 'notes'
+let activeTab = 'guardia';
+
+function renderMonth(){
+  lblMonth.textContent = fmtMonth.format(cursor);
+  daySummary.style.display = (selected? 'block':'none');
+  daySummary.textContent = selected? buildSummary(selected) : '';
+  cal.innerHTML = '';
+  const start = startOfMonth(cursor);
+  const startDay = (start.getDay()+6)%7; // lunes=0
+  const first = addDays(start, -startDay);
+  for(let i=0;i<42;i++){
+    const d=addDays(first,i); const k=ymd(d); const info=day(k);
+    const cell=document.createElement('button'); cell.className='day';
+    const n=document.createElement('div'); n.className='n'; n.textContent=d.getDate();
+    const badges=document.createElement('div'); badges.className='badges';
+
+    // estilos
+    if(ymd(d)===ymd(today)) cell.classList.add('today');
+    if(k===selected) cell.classList.add('selected');
+
+    // fondo por estado / patrón
+    let bg = '';
+    if(info.estado){
+      const map={
+        guardia:STATE.colors.guardia, recargo:STATE.colors.recargo, art:STATE.colors.art, licencia:STATE.colors.licencia,
+        cubro_guardia:STATE.colors.guardia, me_cubre_guardia:STATE.colors.guardia,
+        cubro_recargo:STATE.colors.recargo, me_cubre_recargo:STATE.colors.recargo
+      };
+      cell.style.background = map[info.estado] || 'var(--card)';
+    } else if (patternIsGuardia(d)){
+      cell.style.background = STATE.colors.patternGuardiaBg || 'rgba(16,185,129,0.25)';
     }
 
-    function renderTab(){
-      if(activeTab==='guardia'){
-        tabContent.innerHTML=`
-          <h3>${selectedDate.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</h3>
-          <label>Pabellón: <input></label><br>
-          <label>Rol (Celador/Auxiliar): <input></label><br>
-          <label>Población total: <input type="number"></label><br>
-          <label>Condenados: <input type="number"></label><br>
-          <label>Procesados: <input type="number"></label><br>
-          <label>Presentes: <input type="number"></label><br>
-          <label>Hospitalizados: <input type="number"></label><br>
-        `;
-      } else {
-        tabContent.innerHTML=`
-          <h3>Población</h3>
-          <table>
-            <tr><th>Matrícula</th><th>C/P</th><th>Apellido y Nombre</th></tr>
-            <tr>
-              <td><input></td>
-              <td><select><option>C</option><option>P</option></select></td>
-              <td><input></td>
-            </tr>
-          </table>
-        `;
-      }
+    if(info.pago) badges.append(child('<span class="badge">💲</span>'));
+    if(info.swap) badges.append(child('<span class="badge">🔄</span>'));
+
+    // eventos: 1 toque = seleccionar, doble = abrir; long-press = quick modal
+    let lastTap=0, hold=null;
+    cell.addEventListener('click', ()=>{
+      const t=Date.now();
+      if(t-lastTap<350){ openDay(k); }
+      else { selected=k; renderMonth(); }
+      lastTap=t;
+    });
+    cell.addEventListener('touchstart', ()=>{ hold=setTimeout(()=>openQuick(k),550); },{passive:true});
+    cell.addEventListener('touchend', ()=>{ if(hold){clearTimeout(hold);hold=null;} },{passive:true});
+    cell.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openQuick(k); });
+
+    cell.append(n,badges);
+    cal.append(cell);
+  }
+
+  // actualizar colores dinámicos
+  document.documentElement.style.setProperty('--ring-today', STATE.colors.today||'#34d399');
+  document.documentElement.style.setProperty('--ring-sel', STATE.colors.selected||'#22c55e');
+}
+function child(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstChild; }
+
+function buildSummary(k){
+  const d=day(k);
+  const base=[];
+  if(d.estado) base.push(d.estado.toUpperCase());
+  if(d.pabellon) base.push(`Pab: ${d.pabellon}`);
+  const P=d.poblacion||{};
+  if(P.total) base.push(`Pob: ${P.total}`);
+  if(P.condenados) base.push(`Cond: ${P.condenados}`);
+  if(P.procesados) base.push(`Proc: ${P.procesados}`);
+  if(d.companeros) base.push(`Comp: ${d.companeros}`);
+  return `${k} — ${base.join(' · ')}`;
+}
+
+/* ======= Screen Día / Notas ======= */
+function openDay(k){ activeScreen='day'; selected=k; renderDay(); }
+function closeScreens(){ activeScreen=''; screen.style.display='none'; }
+
+function renderDay(){
+  screen.style.display='block'; screen.innerHTML='';
+  const d = day(selected);
+  // header fijo
+  const head = child(`<div class="row" style="position:sticky;top:0;z-index:2;background:var(--bg2);padding:8px;border-bottom:1px solid #1f2937">
+    <div>${fmtFull.format(parseYMD(selected))}</div>
+    <div style="flex:1"></div>
+    <button class="btn" id="btnBack">←</button>
+  </div>`);
+  head.querySelector('#btnBack').onclick=()=>{ closeScreens(); renderMonth(); };
+  screen.append(head);
+
+  // tabs
+  const tabs = child(`<div class="tabs">
+    <div class="tab ${activeTab==='guardia'?'active':''}" id="tGuardia">Guardia</div>
+    <div class="tab ${activeTab==='poblacion'?'active':''}" id="tPoblacion">Población</div>
+  </div>`);
+  tabs.querySelector('#tGuardia').onclick=()=>{ activeTab='guardia'; renderDay(); };
+  tabs.querySelector('#tPoblacion').onclick=()=>{ activeTab='poblacion'; renderDay(); };
+  screen.append(tabs);
+
+  // panel plegable cabecera
+  const P = d.poblacion||{};
+  const collapsed = `Pab: ${d.pabellon||'-'} · Pob: ${P.total||'-'} · Cond: ${P.condenados||'-'} · Proc: ${P.procesados||'-'}`;
+  const panel = child(`<div class="panel">
+    <div class="head" id="ph">▼ Ocultar — ${collapsed}</div>
+    <div class="body" id="pb">
+      <div class="grid3">
+        <label>Pabellón <input id="fPabellon" value="${escapeHtml(d.pabellon)}"></label>
+        <label>Población total <input type="number" id="fPTotal" value="${P.total||''}"></label>
+        <label>Presentes <input type="number" id="fPPres" value="${P.presentes||''}"></label>
+        <label>Condenados <input type="number" id="fPCond" value="${P.condenados||''}"></label>
+        <label>Procesados <input type="number" id="fPProc" value="${P.procesados||''}"></label>
+        <label>Hospitalizados <input type="number" id="fPHosp" value="${P.hospitalizados||''}"></label>
+        <label style="grid-column:1/-1">Rol (Celador/Auxiliar) <input id="fRol" value="${escapeHtml(d.role)}"></label>
+        <label style="grid-column:1/-1">Acompañado por (coma separada) <input id="fComp" value="${escapeHtml(d.companeros)}"></label>
+        <label style="grid-column:1/-1">Notas <textarea id="fNotas">${escapeHtml(d.notas||'')}</textarea></label>
+      </div>
+    </div>
+  </div>`);
+  let open=true;
+  panel.querySelector('#ph').onclick=()=>{ open=!open; panel.querySelector('#pb').style.display=open?'block':'none'; panel.querySelector('#ph').textContent=(open?'▼ Ocultar — ':'► Mostrar — ')+collapsed; };
+  // cambios
+  panel.querySelector('#fPabellon').oninput=e=>saveDay(selected,{pabellon:e.target.value});
+  panel.querySelector('#fPTotal').oninput=e=>saveDay(selected,{poblacion:{...P,total:e.target.value}});
+  panel.querySelector('#fPPres').oninput=e=>saveDay(selected,{poblacion:{...P,presentes:e.target.value}});
+  panel.querySelector('#fPCond').oninput=e=>saveDay(selected,{poblacion:{...P,condenados:e.target.value}});
+  panel.querySelector('#fPProc').oninput=e=>saveDay(selected,{poblacion:{...P,procesados:e.target.value}});
+  panel.querySelector('#fPHosp').oninput=e=>saveDay(selected,{poblacion:{...P,hospitalizados:e.target.value}});
+  panel.querySelector('#fRol').oninput=e=>saveDay(selected,{role:e.target.value});
+  panel.querySelector('#fComp').oninput=e=>saveDay(selected,{companeros:e.target.value});
+  panel.querySelector('#fNotas').oninput=e=>saveDay(selected,{notas:e.target.value});
+  screen.append(panel);
+
+  if(activeTab==='guardia'){
+    screen.append(renderMovimientos(d));
+  }else{
+    screen.append(renderPoblacion(d));
+  }
+
+  // swipe derecha → Población
+  let sx=null;
+  screen.addEventListener('touchstart',e=>{ sx=e.touches[0].clientX; },{passive:true});
+  screen.addEventListener('touchend',e=>{
+    if(sx==null) return; const dx=e.changedTouches[0].clientX - sx; sx=null;
+    if(dx>60){ activeTab='poblacion'; renderDay(); }
+  },{passive:true});
+}
+
+function renderMovimientos(d){
+  const wrap=document.createElement('div');
+  // encabezado
+  wrap.append(child(`<div class="muted" style="margin:4px 0">Novedades</div>`));
+  // tabla
+  const table = child(`<table class="table">
+    <thead><tr><th style="width:30%">Objeto</th><th style="width:14%">Entrada</th><th style="width:14%">Salida</th><th>Movimiento</th><th style="width:20%">A cargo</th><th style="width:40px"></th></tr></thead>
+    <tbody id="mvBody"></tbody>
+  </table>`));
+  wrap.append(table);
+
+  const body = table.querySelector('#mvBody');
+  const rows = d.movimientos||[];
+  function draw(){
+    body.innerHTML='';
+    rows.forEach((r,i)=>{
+      const tr=document.createElement('tr');
+      const tdObj=document.createElement('td'); tdObj.append(renderAuto(r.objeto,(v)=>{r.objeto=v; save();}));
+      const tdEn=document.createElement('td'); tdEn.append(inp(r.entrada||nowHHMM(), v=>{r.entrada=v; save();}));
+      const tdSa=document.createElement('td'); tdSa.append(inp(r.salida||'', v=>{r.salida=v; save();}));
+      const tdMo=document.createElement('td'); tdMo.append(inp(r.movimiento||'', v=>{r.movimiento=v; save();}));
+      const tdAc=document.createElement('td'); tdAc.append(inp(r.a_cargo||'', v=>{r.a_cargo=v; save();}));
+      const tdDel=document.createElement('td'); const b=document.createElement('button'); b.className='btn'; b.textContent='✕'; b.onclick=()=>{ rows.splice(i,1); save(true); }; tdDel.append(b);
+      tr.append(tdObj,tdEn,tdSa,tdMo,tdAc,tdDel);
+      body.append(tr);
+    });
+  }
+  function save(redraw){ saveDay(selected,{movimientos:rows}); if(redraw) draw(); }
+  function inp(val,on){ const x=document.createElement('input'); x.value=val; x.oninput=()=>on(x.value); return x; }
+
+  draw();
+  const foot = child(`<div class="foot-right"><button class="btn success">Agregar fila</button></div>`);
+  foot.querySelector('button').onclick=()=>{ rows.push({objeto:"",entrada:nowHHMM(),salida:"",movimiento:"",a_cargo:""}); save(true); };
+  wrap.append(foot);
+  return wrap;
+}
+
+function renderPoblacion(d){
+  const wrap=document.createElement('div');
+  const rows=d.poblacionListado||[];
+  const P=d.poblacion||{};
+  const tot=rows.length, c=rows.filter(x=>x.cp==='C').length, p=rows.filter(x=>x.cp==='P').length;
+  const mismatch = (P.total && Number(P.total)!==tot) || (P.condenados && Number(P.condenados)!==c) || (P.procesados && Number(P.procesados)!==p);
+  if(mismatch) wrap.append(child(`<div class="muted" style="color:#fbbf24;margin-bottom:6px">Aviso: totales de cabecera no coinciden con el detalle.</div>`));
+
+  const table=child(`<table class="table"><thead><tr><th style="width:20%">Matrícula</th><th style="width:10%">C/P</th><th>Apellido y Nombre</th><th style="width:40px"></th></tr></thead><tbody id="pb"></tbody></table>`);
+  const body=table.querySelector('#pb');
+  function draw(){
+    body.innerHTML='';
+    rows.forEach((r,i)=>{
+      const tr=document.createElement('tr');
+      const t1=document.createElement('td'); const i1=document.createElement('input'); i1.value=r.matricula||''; i1.oninput=()=>{ r.matricula=i1.value; save(); }; t1.append(i1);
+      const t2=document.createElement('td'); const s2=document.createElement('select'); s2.innerHTML='<option value="C">C</option><option value="P">P</option>'; s2.value=r.cp||'C'; s2.oninput=()=>{ r.cp=s2.value; save(); }; t2.append(s2);
+      const t3=document.createElement('td'); const i3=document.createElement('input'); i3.value=r.nombre||''; i3.oninput=()=>{ r.nombre=i3.value; save(); }; t3.append(i3);
+      const t4=document.createElement('td'); const b=document.createElement('button'); b.className='btn'; b.textContent='✕'; b.onclick=()=>{ rows.splice(i,1); save(true); }; t4.append(b);
+      tr.append(t1,t2,t3,t4); body.append(tr);
+    });
+  }
+  function save(redraw){ saveDay(selected,{poblacionListado:rows}); if(redraw) draw(); }
+  draw();
+  const foot = child(`<div class="foot-right"><button class="btn success">Agregar interno</button></div>`);
+  foot.querySelector('button').onclick=()=>{ rows.push({matricula:"",cp:"C",nombre:""}); save(true); };
+  wrap.append(table,foot);
+  return wrap;
+}
+
+/* ====== Autocomplete que aprende ====== */
+function renderAuto(value,onCommit){
+  const wrap=document.createElement('div'); wrap.className='auto';
+  const input=document.createElement('input'); input.value=value||''; wrap.append(input);
+  const list=document.createElement('div'); list.className='auto-list'; list.style.display='none'; wrap.append(list);
+
+  function filter(){
+    const base=STATE.objectSuggestions||[];
+    const q=(input.value||'').toLowerCase();
+    const items = q? base.filter(s=>s.toLowerCase().includes(q)) : base;
+    list.innerHTML=''; items.slice(0,20).forEach(s=>{ const it=child(`<div class="auto-item"></div>`); it.textContent=s; it.onmousedown=()=>{ commit(s); }; list.append(it); });
+    list.style.display = items.length? 'block':'none';
+  }
+  function commit(v){
+    input.value=v; list.style.display='none'; onCommit(v);
+    if(v && !(STATE.objectSuggestions||[]).includes(v)){
+      STATE.objectSuggestions=[...(STATE.objectSuggestions||[]), v].slice(-200);
+      persist();
     }
+  }
+  input.oninput=()=>{ onCommit(input.value); filter(); };
+  input.onfocus=()=>filter();
+  input.onblur=()=>setTimeout(()=> list.style.display='none', 150);
+  input.placeholder="Recuento, Servicio médico…";
+  return wrap;
+}
 
-    document.getElementById('prev').onclick=()=>{ cursor.setMonth(cursor.getMonth()-1); renderCalendar(); };
-    document.getElementById('next').onclick=()=>{ cursor.setMonth(cursor.getMonth()+1); renderCalendar(); };
+/* ====== Quick modal ====== */
+const modalQuick = $('#modalQuick');
+let quickForKey = null;
+function openQuick(k){
+  quickForKey=k;
+  const d=day(k);
+  $('#quickDate').textContent=k;
+  $('#qEstado').value=d.estado||'';
+  $('#qPersona').value=d.persona||'';
+  $('#qPago').checked=!!d.pago;
+  $('#qSwap').checked=!!d.swap;
+  $('#qLinked').value=d.linkedDate||'';
+  $('#qLinked').style.display = d.swap? 'block':'none';
+  $('#qLicense').style.display='none';
+  modalQuick.style.display='flex';
+}
+$('#qCancel').onclick=()=> modalQuick.style.display='none';
+$('#qEstado').oninput=e=>{
+  // mostrar botón de licencia
+  $('#qLicense').style.display = (e.target.value==='licencia')? 'inline-block':'none';
+};
+$('#qSwap').oninput=e=>{ $('#qLinked').style.display = e.target.checked? 'block':'none'; if(e.target.checked) $('#qPago').checked=false; };
+$('#qPago').oninput=e=>{ if(e.target.checked) $('#qSwap').checked=false; $('#qLinked').style.display = $('#qSwap').checked? 'block':'none'; };
+$('#qLicense').onclick=()=>{ modalQuick.style.display='none'; openLicense(quickForKey); };
+$('#qSave').onclick=()=>{
+  const estado=$('#qEstado').value||null;
+  const pago=$('#qPago').checked;
+  const swap=$('#qSwap').checked;
+  const linked=$('#qLinked').value;
+  const persona=$('#qPersona').value;
+  if(estado==='licencia'){ openLicense(quickForKey); return; }
+  setEstado(quickForKey,{estado,pago,swap,linkedDate: swap? linked:"",persona});
+  modalQuick.style.display='none'; renderMonth();
+};
 
-    document.getElementById('tab-guardia').onclick=()=>{ activeTab='guardia'; document.getElementById('tab-guardia').classList.add('active'); document.getElementById('tab-poblacion').classList.remove('active'); renderTab(); };
-    document.getElementById('tab-poblacion').onclick=()=>{ activeTab='poblacion'; document.getElementById('tab-poblacion').classList.add('active'); document.getElementById('tab-guardia').classList.remove('active'); renderTab(); };
-
-    renderCalendar(); renderTab();
-
-    // === Registrar Service Worker ===
-    if('serviceWorker' in navigator){
-      window.addEventListener('load', ()=>{
-        navigator.serviceWorker.register('./sw.js')
-        .then(reg=>console.log('SW registrado', reg))
-        .catch(err=>console.error('SW fallo', err));
-      });
+/* ====== License modal ====== */
+const modalLicense = $('#modalLicense');
+let licenseStart = null;
+function openLicense(startKey){
+  licenseStart=startKey;
+  $('#licFrom').textContent=startKey;
+  $$('input[name="licMode"]').forEach(x=>x.oninput=onLicMode);
+  onLicMode();
+  modalLicense.style.display='flex';
+}
+function onLicMode(){
+  const mode = $$('input[name="licMode"]').find(x=>x.checked).value;
+  $('#licRange').style.display = mode==='rango'?'grid':'none';
+  $('#licCalc').style.display  = mode==='calculo'?'grid':'none';
+}
+$('#licCancel').onclick=()=> modalLicense.style.display='none';
+$('#licApply').onclick=()=>{
+  const mode = $$('input[name="licMode"]').find(x=>x.checked).value;
+  let keys=[];
+  if(mode==='rango'){
+    const hasta = $('#licHasta').value;
+    if(hasta) keys=expandDates(licenseStart,hasta);
+  }else{
+    const corr=Number($('#licCorridos').value||0);
+    const hab=Number($('#licHabiles').value||0);
+    if(corr>0) keys=keys.concat(expandCorridos(licenseStart,corr));
+    if(hab>0){
+      const set = new Set($('#licExFeriados').checked ? STATE.holidays : []);
+      keys=keys.concat(expandHabiles(licenseStart,hab,set,true));
     }
-  </script>
+  }
+  const days={...STATE.days};
+  keys.forEach(k=>{ days[k]={...(days[k]||emptyDay(k)), estado:'licencia', pago:false, swap:false, linkedDate:""}; });
+  STATE.days=days; persist();
+  modalLicense.style.display='none'; renderMonth();
+};
+
+/* ====== Ajustes ====== */
+const modalSettings=$('#modalSettings');
+$('#btnSettings').onclick=()=>{
+  $('#sPatronOn').checked=!!STATE.pattern.enabled;
+  $('#sStart').value=STATE.pattern.start||'';
+  $('#sTurno').value=STATE.pattern.turno||'B';
+  $('#cGuardia').value=STATE.colors.guardia||'#0ea5e9';
+  $('#cRecargo').value=STATE.colors.recargo||'#eab308';
+  $('#cArt').value=STATE.colors.art||'#ef4444';
+  $('#cLicencia').value=STATE.colors.licencia||'#60a5fa';
+  $('#cPatronBg').value=STATE.colors.patternGuardiaBg||'rgba(16,185,129,0.25)';
+  $('#cToday').value=STATE.colors.today||'#34d399';
+  $('#cSelected').value=STATE.colors.selected||'#22c55e';
+  $('#sFeriados').value=(STATE.holidays||[]).join('\n');
+  modalSettings.style.display='flex';
+};
+$('#sClose').onclick=()=> modalSettings.style.display='none';
+$('#sSave').onclick=()=>{
+  const colors={
+    guardia:$('#cGuardia').value, recargo:$('#cRecargo').value, art:$('#cArt').value, licencia:$('#cLicencia').value,
+    patternGuardiaBg:$('#cPatronBg').value, today:$('#cToday').value, selected:$('#cSelected').value
+  };
+  // aviso simple por repetidos (no bloquea)
+  const vals=[colors.guardia,colors.recargo,colors.art,colors.licencia];
+  if(new Set(vals).size!==vals.length) toast('Aviso: hay colores repetidos entre estados.');
+  STATE.pattern.enabled=$('#sPatronOn').checked;
+  STATE.pattern.start=$('#sStart').value||'';
+  STATE.pattern.turno=$('#sTurno').value||'B';
+  STATE.colors=colors;
+  STATE.holidays=$('#sFeriados').value.split(/\s+/).map(s=>s.trim()).filter(Boolean);
+  persist();
+  modalSettings.style.display='none'; renderMonth();
+};
+
+/* ====== Notas ====== */
+const modalNotes=$('#modalNotes');
+$('#btnNotes').onclick=()=>{
+  $('#nDate').value = ymd(new Date());
+  drawNotes();
+  modalNotes.style.display='flex';
+};
+$('#nClose').onclick=()=> modalNotes.style.display='none';
+$('#nAdd').onclick=()=>{
+  const it={ id:crypto.randomUUID?.()||String(Date.now()), type:$('#nType').value, date:$('#nDate').value, text:$('#nText').value };
+  STATE.notes=[...(STATE.notes||[]), it]; persist(); $('#nText').value=''; drawNotes();
+};
+function drawNotes(){
+  const box=$('#nList'); box.innerHTML='';
+  (STATE.notes||[]).forEach(it=>{
+    const row=child(`<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
+      <div class="badge" style="background:#1f2937">${it.type}</div>
+      <div style="flex:1"><div class="muted">${it.date}</div><div>${escapeHtml(it.text||'')}</div></div>
+      <button class="btn" data-id="${it.id}">✕</button>
+    </div>`);
+    row.querySelector('button').onclick=()=>{ STATE.notes=STATE.notes.filter(x=>x.id!==it.id); persist(); drawNotes(); };
+    box.append(row);
+  });
+}
+
+/* ====== Nav / init ====== */
+btnPrev.onclick=()=>{ cursor=new Date(cursor.getFullYear(), cursor.getMonth()-1,1); renderMonth(); };
+btnNext.onclick=()=>{ cursor=new Date(cursor.getFullYear(), cursor.getMonth()+1,1); renderMonth(); };
+
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',1800); }
+
+/* ====== Start ====== */
+bootState().then(()=>{
+  renderMonth();
+});
+
+/* ====== SW register (archivo real) ====== */
+if('serviceWorker' in navigator){
+  // Detect base path (útil para GH Pages en subcarpeta)
+  const basePath = (()=>{
+    const p = location.pathname;
+    return p.endsWith('/') ? p : p.replace(/[^/]+$/, '');
+  })();
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register(basePath + 'sw.js', { scope: basePath })
+      .catch(err=>console.log('SW register error:', err));
+  });
+}
+</script>
 </body>
 </html>
