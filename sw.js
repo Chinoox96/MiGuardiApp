@@ -1,5 +1,5 @@
 // sw.js
-const CACHE = 'guardias-pwa-v8';
+const CACHE = 'guardias-pwa-v9';
 const CORE = [
   './',
   './index.html',
