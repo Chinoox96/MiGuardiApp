@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>Guardias 24×48</title>
 <meta name="theme-color" content="#0ea5e9"/>
-
 <link rel="manifest" href="./manifest.json"/>
 <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIElEQVR4Xu3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAL4J3gAAAl0nT5wAAAAASUVORK5CYII="/>
 
@@ -18,22 +17,38 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
 <style>
+  :root{
+    --bg: #0f172a;         /* dark */
+    --fg: #e5e7eb;
+    --panel:#0b1220;
+    --border:#1f2937;
+  }
+  .theme-light{
+    --bg: #ffffff;         /* light */
+    --fg: #0f172a;
+    --panel:#f1f5f9;
+    --border:#cbd5e1;
+  }
   html,body,#root{height:100%}
+  body{background:var(--bg);color:var(--fg)}
+  .panel{background:var(--panel);border:1px solid var(--border)}
+  .border-soft{border:1px solid var(--border)}
   ::-webkit-scrollbar{height:8px;width:8px}
   ::-webkit-scrollbar-thumb{background:#334155;border-radius:8px}
   .btn{padding:.5rem .75rem;border-radius:.75rem;transform-origin:center}
   .btn:active{transform:scale(.97)}
   .badge{font-size:10px;padding:2px 6px;border-radius:9999px;background:#1f2937}
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px;z-index:50}
-  .modal-card{background:#0b1220;color:#e5e7eb;border:1px solid #1f2937;border-radius:16px;width:100%;max-width:560px;padding:16px}
+  .modal-card{background:var(--panel);color:var(--fg);border:1px solid var(--border);border-radius:16px;width:100%;max-width:560px;padding:16px}
   .auto-wrap{position:relative}
-  .auto-list{position:absolute;top:100%;left:0;right:0;z-index:20;background:#0b1220;border:1px solid #1f2937;border-radius:12px;max-height:220px;overflow:auto}
+  .auto-list{position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--panel);border:1px solid var(--border);border-radius:12px;max-height:220px;overflow:auto}
   .auto-item{padding:8px 10px;cursor:pointer}
   .auto-item:hover{background:#172033}
-  .w-10px{width:40px} /* reemplazo del style inline */
+  .spacer-40{width:40px}
+  .pill{display:inline-block;padding:.15rem .45rem;border-radius:9999px;font-size:.7rem;font-weight:600}
 </style>
 </head>
-<body class="bg-slate-900 text-slate-100">
+<body>
 <div id="root"></div>
 
 <script type="text/babel">
@@ -52,7 +67,7 @@ const isWeekend = d => [0,6].includes(new Date(d).getDay());
 const nowTimeHHMM = () => new Date().toTimeString().slice(0,5);
 
 /* ========= Persistencia ========= */
-const LS_KEY = "guardias.pwa.v4";
+const LS_KEY = "guardias.pwa.v5";
 const IDB_NAME = 'guardias-db';
 const IDB_STORE = 'state';
 function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
@@ -63,16 +78,22 @@ async function idbSet(val,key='singleton'){ try{ const db=await idbOpen(); await
 function defaultState(){
   return {
     days: {},
-    pattern: { enabled:false, start:"", turno:"B" },
+    // patrón: type = '24x48' | '2x4' | 'administrativo'
+    pattern: { enabled:false, start:"", turno:"B", type:"24x48" },
     colors: {
-      guardia: "#0ea5e9",
       recargo: "#eab308",
       art: "#ef4444",
       licencia: "#60a5fa",
+      cubro_guardia: "#22c55e",
+      me_cubre_guardia: "#14b8a6",
+      cubro_recargo: "#f59e0b",
+      me_cubre_recargo: "#f97316",
       patternGuardiaBg: "rgba(16,185,129,0.25)",
       selected: "#22c55e",
-      today: "#34d399"
+      today: "#34d399",
+      summaryPill: "#334155"
     },
+    theme: "dark", // 'dark' | 'light'
     holidays: [],
     notes: [],
     objectSuggestions: []
@@ -83,6 +104,12 @@ function useStore(){
   const [state,setState] = useState(()=>{ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null") || defaultState(); }catch{ return defaultState(); }});
   useEffect(()=>{ (async()=>{ const from = await idbGet(); if(from){ setState(from); }})(); },[]);
   useEffect(()=>{ localStorage.setItem(LS_KEY, JSON.stringify(state)); idbSet(state); },[state]);
+  // aplicar tema
+  useEffect(()=>{
+    const root = document.documentElement;
+    if(state.theme==='light'){ root.classList.add('theme-light'); }
+    else { root.classList.remove('theme-light'); }
+  }, [state.theme]);
   return [state,setState];
 }
 
@@ -95,7 +122,7 @@ function emptyDay(key){
     role:"",
     companeros:"",
     notas:"",
-    estado: null,        // guardia | recargo | cubro_guardia | me_cubre_guardia | cubro_recargo | me_cubre_recargo | art | licencia
+    estado: null,        // recargo | cubro_guardia | me_cubre_guardia | cubro_recargo | me_cubre_recargo | art | licencia
     pago:false,          // 💲 (exclusivo con swap)
     swap:false,          // 🔄
     linkedDate:"",
@@ -127,6 +154,30 @@ function expandLicenseByCalendarDays(startStr, count){
   return out;
 }
 
+/* ========= Patrón de guardias ========= */
+function makePatternFn(pattern){
+  if(!pattern.enabled || !pattern.start) return ()=>false;
+  const anchor = parseYMD(pattern.start);
+  const startKey = ymd(anchor);
+  return (date)=>{
+    const dayKey = ymd(date);
+    const diff = Math.floor((parseYMD(dayKey) - anchor)/86400000);
+    if(pattern.type === '24x48'){
+      return (diff % 3 === 0); // 1 on + 2 off
+    }
+    if(pattern.type === '2x4'){
+      // 2 trabajo, 4 franco -> ciclo de 6 días: on en (0,1), off (2..5)
+      const m = ((diff % 6)+6)%6;
+      return (m===0 || m===1);
+    }
+    if(pattern.type === 'administrativo'){
+      const d = new Date(date).getDay(); // 0..6 Domingo..Sábado
+      return d>=1 && d<=5; // lun..vie
+    }
+    return false;
+  };
+}
+
 /* ========= Contexto ========= */
 const StoreCtx = React.createContext(null);
 function useStoreContext(){ return React.useContext(StoreCtx); }
@@ -140,8 +191,17 @@ function App(){
   const [screen,setScreen] = useState('month'); // 'month' | 'day' | 'notes'
   const [quickKey,setQuickKey] = useState(null);
   const [showSettings,setShowSettings] = useState(false);
-  const [showLicense,setShowLicense] = useState(null); // { date:'YYYY-MM-DD' } | null
+  const [showLicense,setShowLicense] = useState(null);
+  const [installPrompt, setInstallPrompt] = useState(null);
 
+  // PWA install prompt
+  useEffect(()=>{
+    const handler=(e)=>{ e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return ()=> window.removeEventListener('beforeinstallprompt', handler);
+  },[]);
+
+  // Celdas y swipe para cambiar mes
   const cells = useMemo(()=>{
     const start = startOfMonth(cursor);
     const startWeekDay = (start.getDay()+6)%7; // Lunes=0
@@ -149,17 +209,17 @@ function App(){
     return Array.from({length:42},(_,i)=> addDays(first,i));
   },[cursor]);
 
-  const isPatternGuardia = useMemo(()=>{
-    const p=store.pattern; if(!p.enabled||!p.start) return ()=>false;
-    const anchor=parseYMD(p.start);
-    return d=>{ const diff = Math.floor((parseYMD(ymd(d)) - anchor)/86400000); return (diff%3===0); };
-  },[store.pattern]);
+  const isPatternGuardia = useMemo(()=> makePatternFn(store.pattern), [store.pattern]);
 
   function dayData(k){ return store.days[k] || emptyDay(k); }
   function saveDay(k,patch){ setStore(s=> ({...s, days:{...s.days, [k]:{...dayData(k), ...patch}} })); }
 
-  function setDayEstado(k, {estado=null, pago=false, swap=false, linkedDate="", linkedType=""}){
+  function setDayEstado(k, {estado=null, pago=false, swap=false, linkedDate="", linkedType="", notaTexto=""}){
     if(pago && swap){ pago=false; }
+    // Guardar nota rápida si vino
+    if(notaTexto && notaTexto.trim()){
+      setStore(s=> ({...s, notes: [...s.notes, {id:crypto.randomUUID?.()||String(Date.now()), type:'texto', date:k, text:notaTexto.trim()}]}));
+    }
     if(swap && linkedDate){
       let tipoEsp = "";
       if(estado==='cubro_guardia') tipoEsp='me_cubre_guardia';
@@ -175,6 +235,7 @@ function App(){
     saveDay(k,{ ...d, estado, pago, swap, linkedDate, linkedType });
   }
 
+  // taps & swipes día
   const lastTapRef = useRef(0);
   function onTapDay(d){
     const t=Date.now();
@@ -184,51 +245,101 @@ function App(){
   }
   function openDay(d){ const k=ymd(d); setSelectedKey(k); setScreen('day'); }
 
+  // swipe mes
+  const swipeStartX = useRef(null);
+  const monthWrapRef = useRef(null);
+  useEffect(()=>{
+    const el = monthWrapRef.current; if(!el) return;
+    const onStart = (e)=>{ swipeStartX.current = e.touches[0].clientX; };
+    const onEnd = (e)=>{ if(swipeStartX.current==null) return;
+      const dx = e.changedTouches[0].clientX - swipeStartX.current;
+      if(dx > 60) setCursor(d=> new Date(d.getFullYear(), d.getMonth()-1, 1));     // derecha -> mes anterior
+      if(dx < -60) setCursor(d=> new Date(d.getFullYear(), d.getMonth()+1, 1));    // izquierda -> mes siguiente
+      swipeStartX.current=null;
+    };
+    el.addEventListener('touchstart', onStart, {passive:true});
+    el.addEventListener('touchend', onEnd, {passive:true});
+    return ()=>{ el.removeEventListener('touchstart', onStart); el.removeEventListener('touchend', onEnd); };
+  }, [monthWrapRef.current]);
+
+  // Resumen bajo el calendario
   const summary = useMemo(()=>{
     if(!selectedKey) return null;
     const d = dayData(selectedKey);
-    const base = [];
-    if(d.estado) base.push(d.estado.toUpperCase());
-    if(d.pabellon) base.push('Pab: ' + d.pabellon);
+    const pills = [];
+    if(d.estado){
+      const mapTxt = {
+        recargo:'Recargo', art:'ART', licencia:'Licencia',
+        cubro_guardia:'Cubro guardia', me_cubre_guardia:'Me cubre guardia',
+        cubro_recargo:'Cubro recargo', me_cubre_recargo:'Me cubre recargo'
+      };
+      pills.push(mapTxt[d.estado] || d.estado);
+    }
+    if(d.pago) pills.push('💲');
+    if(d.swap) pills.push('🔄');
     const P=d.poblacion||{};
-    if(P.total) base.push('Pob: ' + P.total);
-    if(P.condenados) base.push('Cond: ' + P.condenados);
-    if(P.procesados) base.push('Proc: ' + P.procesados);
-    if(d.companeros) base.push('Comp: ' + d.companeros);
-    return base.join(' · ');
+    const smalls = [
+      d.pabellon?`Pab: ${d.pabellon}`:null,
+      P.total?`Pob: ${P.total}`:null,
+      P.condenados?`Cond: ${P.condenados}`:null,
+      P.procesados?`Proc: ${P.procesados}`:null,
+      d.companeros?`Comp: ${d.companeros}`:null
+    ].filter(Boolean);
+    return {pills, smalls};
   },[selectedKey, store.days]);
+
+  // botón instalar
+  async function onInstall(){
+    if(!installPrompt) return;
+    installPrompt.prompt();
+    try{ await installPrompt.userChoice; }catch{}
+    setInstallPrompt(null);
+  }
 
   return (
     <div className="h-full flex flex-col">
       <TopBar
-        screen={screen} cursor={cursor}
+        theme={store.theme}
+        onToggleTheme={()=> setStore(s=>({...s, theme: s.theme==='dark'?'light':'dark'}))}
+        cursor={cursor}
         onPrev={()=> setCursor(d=> new Date(d.getFullYear(), d.getMonth()-1,1))}
         onNext={()=> setCursor(d=> new Date(d.getFullYear(), d.getMonth()+1,1))}
-        onBack={()=> setScreen('month')}
-        onSettings={()=> setShowSettings(true)}
         onNotes={()=> setScreen('notes')}
+        onSettings={()=> setShowSettings(true)}
+        canInstall={!!installPrompt}
+        onInstall={onInstall}
       />
 
       {screen==='month' && (
         <>
+          <div ref={monthWrapRef} className="flex-1 overflow-y-auto px-2 pb-2">
+            <MonthGrid
+              cells={cells}
+              cursor={cursor}
+              selectedKey={selectedKey}
+              onTap={onTapDay}
+              onOpen={openDay}
+              isPattern={d=> isPatternGuardia(d)}
+              colors={store.colors}
+              getDay={k=>dayData(k)}
+              onLong={(d)=> setQuickKey(ymd(d))}
+            />
+          </div>
+
+          {/* Resumen fijo debajo del calendario */}
           {selectedKey && summary && (
-            <div className="px-3 pt-2">
-              <div className="bg-slate-800/70 border border-slate-700 rounded-xl px-3 py-2 text-sm">
-                {selectedKey} — {summary}
+            <div className="px-3 pb-3">
+              <div className="panel rounded-xl px-3 py-2 text-sm">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="text-xs opacity-70">{selectedKey}</span>
+                  {summary.pills.map((t,i)=>(
+                    <span key={i} className="pill" style={{backgroundColor: (store.colors.summaryPill || '#334155')}}>{t}</span>
+                  ))}
+                </div>
+                <div className="text-xs opacity-90">{summary.smalls.join(' · ')}</div>
               </div>
             </div>
           )}
-          <MonthGrid
-            cells={cells}
-            cursor={cursor}
-            selectedKey={selectedKey}
-            onTap={onTapDay}
-            onOpen={openDay}
-            isPattern={d=> isPatternGuardia(d)}
-            colors={store.colors}
-            getDay={k=>dayData(k)}
-            onLong={(d)=> setQuickKey(ymd(d))}
-          />
         </>
       )}
 
@@ -291,18 +402,16 @@ function App(){
 }
 
 /* ===== Topbar ===== */
-function TopBar({screen,cursor,onPrev,onNext,onBack,onSettings,onNotes}){
+function TopBar({theme,onToggleTheme,cursor,onPrev,onNext,onNotes,onSettings,canInstall,onInstall}){
   return (
-    <header className="px-3 py-2 bg-slate-950 border-b border-slate-800 flex items-center gap-2">
-      {screen!=='month'
-        ? <button onClick={onBack} className="btn bg-slate-800">←</button>
-        : <button onClick={onPrev} className="btn bg-slate-800">◀</button>}
+    <header className="px-3 py-2 bg-slate-950 border-b border-soft flex items-center gap-2">
+      <button onClick={onPrev} className="btn panel">◀</button>
       <div className="text-lg font-medium flex-1 text-center select-none capitalize">{fmtMonth.format(cursor)}</div>
-      {screen==='month'
-        ? <button onClick={onNext} className="btn bg-slate-800">▶</button>
-        : <div class="w-10px"></div>}
+      <button onClick={onNext} className="btn panel">▶</button>
+      {canInstall && <button onClick={onInstall} className="btn bg-emerald-600">Instalar</button>}
       <button onClick={onNotes} className="btn bg-sky-600">Notas</button>
       <button onClick={onSettings} className="btn bg-emerald-600">Ajustes</button>
+      <button onClick={onToggleTheme} className="btn panel">{theme==='dark'?'🌙':'☀️'}</button>
     </header>
   );
 }
@@ -312,7 +421,7 @@ function MonthGrid({cells,cursor,selectedKey,onTap,onOpen,isPattern,colors,getDa
   const todayKey = ymd(new Date());
   const weekdays = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
   return (
-    <div className="flex-1 overflow-y-auto px-2 pb-2">
+    <div className="">
       <div className="grid grid-cols-7 text-center text-xs text-slate-400 mb-1 select-none">
         {weekdays.map(w=> <div key={w} className="py-1">{w}</div>)}
       </div>
@@ -354,19 +463,23 @@ function MonthCell({date,inMonth,info,pattern,isToday,isSel,colors,onTap,onOpen,
   if(pattern && !info?.estado){ styleObj.background = colors.patternGuardiaBg || 'transparent'; }
   if(info?.estado){
     const mapCol = {
-      guardia: colors.guardia,
       recargo: colors.recargo,
       art: colors.art,
       licencia: colors.licencia,
-      cubro_guardia: colors.guardia,
-      me_cubre_guardia: colors.guardia,
-      cubro_recargo: colors.recargo,
-      me_cubre_recargo: colors.recargo
+      cubro_guardia: colors.cubro_guardia,
+      me_cubre_guardia: colors.me_cubre_guardia,
+      cubro_recargo: colors.cubro_recargo,
+      me_cubre_recargo: colors.me_cubre_recargo
     };
     styleObj.background = mapCol[info.estado] || 'transparent';
   }
   if(isSel){ styleObj.outline = '2px solid ' + (colors.selected||'#22c55e'); }
   if(isToday){ styleObj.boxShadow = 'inset 0 0 0 2px ' + (colors.today||'#34d399'); }
+
+  // abreviatura cuando NO es guardia de patrón
+  const abbr = info?.estado ? (
+    {recargo:'R', art:'ART', licencia:'LIC', cubro_guardia:'CG', me_cubre_guardia:'MG', cubro_recargo:'CR', me_cubre_recargo:'MR'}[info.estado] || ''
+  ) : '';
 
   return (
     <button
@@ -377,9 +490,11 @@ function MonthCell({date,inMonth,info,pattern,isToday,isSel,colors,onTap,onOpen,
       onContextMenu={(e)=>{ e.preventDefault(); onLong?.(); }}
       className={'aspect-square rounded-xl p-1 flex flex-col items-start justify-between ' + bgClass}
       style={styleObj || {}}
+      aria-label={abbr ? ('Estado: ' + abbr) : 'Día'}
     >
       <div className="text-[11px] opacity-90">{fmtDay.format(date)}</div>
       <div className="w-full flex gap-1 flex-wrap justify-end">
+        {abbr && <span className="badge">{abbr}</span>}
         {info?.pago && <span className="badge">💲</span>}
         {info?.swap && <span className="badge">🔄</span>}
       </div>
@@ -393,12 +508,13 @@ function QuickModal({ymdKey,data,colors,onClose,onPick,onOpenLicencia}){
   const [pago,setPago]=useState(!!data.pago);
   const [swap,setSwap]=useState(!!data.swap);
   const [linked,setLinked]=useState(data.linkedDate||"");
+  const [nota,setNota]=useState("");
 
   useEffect(()=>{ if(pago && swap){ setPago(false); } },[pago,swap]);
 
-  function go(){
-    if(estado==='licencia'){ onOpenLicencia(); return; }
-    onPick({estado: estado||null, pago, swap, linkedDate: swap? linked:"", linkedType:""});
+  function go(kind){
+    if(kind==='licencia'|| estado==='licencia'){ onOpenLicencia(); return; }
+    onPick({estado: estado||null, pago, swap, linkedDate: swap? linked:"", linkedType:"", notaTexto: (kind==='nota')?nota:""});
   }
 
   return (
@@ -406,9 +522,8 @@ function QuickModal({ymdKey,data,colors,onClose,onPick,onOpenLicencia}){
       <div className="modal-card" onClick={e=>e.stopPropagation()}>
         <div className="text-sm opacity-80 mb-2">{ymdKey}</div>
         <div className="grid gap-2">
-          <select value={estado} onChange={e=>setEstado(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-2">
+          <select value={estado} onChange={e=>setEstado(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-2 py-2">
             <option value="">(sin estado)</option>
-            <option value="guardia">Guardia</option>
             <option value="recargo">Recargo</option>
             <option value="cubro_guardia">Cubro guardia a…</option>
             <option value="me_cubre_guardia">Me cubre guardia…</option>
@@ -424,12 +539,16 @@ function QuickModal({ymdKey,data,colors,onClose,onPick,onOpenLicencia}){
             <input type="checkbox" checked={swap} onChange={e=>{ setSwap(e.target.checked); if(e.target.checked) setPago(false); }}/> 🔄
           </label>
           {swap && (
-            <input type="date" value={linked} onChange={e=>setLinked(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
+            <input type="date" value={linked} onChange={e=>setLinked(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2"/>
           )}
+          <textarea rows="2" placeholder="Agregar nota rápida (opcional)" value={nota} onChange={e=>setNota(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2"/>
         </div>
-        <div className="mt-3 flex justify-end gap-2">
-          <button className="btn bg-slate-700" onClick={onClose}>Cancelar</button>
-          <button className="btn bg-emerald-600" onClick={go}>{estado==='licencia'?'Licencia…':'Guardar'}</button>
+        <div className="mt-3 flex justify-between gap-2">
+          <button className="btn bg-sky-700" onClick={()=>go('nota')}>Agregar nota</button>
+          <div className="flex gap-2">
+            <button className="btn panel" onClick={onClose}>Cerrar</button>
+            <button className="btn bg-emerald-600" onClick={()=>go('estado')}>{estado==='licencia'?'Licencia…':'Guardar'}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -454,17 +573,17 @@ function LicenseModal({date,holidays,onClose,onApply}){
         </div>
         {mode==='rango' ? (
           <div className="grid gap-2">
-            <label>Hasta: <input type="date" value={hasta} onChange={e=>setHasta(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
+            <label>Hasta: <input type="date" value={hasta} onChange={e=>setHasta(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2 w-full"/></label>
           </div>
         ) : (
           <div className="grid gap-2">
-            <label>Días corridos: <input type="number" min="0" value={corridos} onChange={e=>setCorridos(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
-            <label>Días hábiles: <input type="number" min="0" value={habiles} onChange={e=>setHabiles(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 w-full"/></label>
+            <label>Días corridos: <input type="number" min="0" value={corridos} onChange={e=>setCorridos(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2 w-full"/></label>
+            <label>Días hábiles: <input type="number" min="0" value={habiles} onChange={e=>setHabiles(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2 w-full"/></label>
             <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={excluirFeriados} onChange={e=>setExcluirFeriados(e.target.checked)}/> Excluir feriados</label>
           </div>
         )}
         <div className="mt-3 flex justify-end gap-2">
-          <button className="btn bg-slate-700" onClick={onClose}>Cancelar</button>
+          <button className="btn panel" onClick={onClose}>Cancelar</button>
           <button className="btn bg-emerald-600" onClick={()=> onApply({mode, until:hasta, corridos, habiles, excluirFeriados})}>Aplicar</button>
         </div>
       </div>
@@ -478,17 +597,22 @@ function DayScreen({ymdKey,data,setData,setEstado,colors}){
   useEffect(()=> setTab("guardia"), [ymdKey]);
 
   const P = data.poblacion||{};
-  const collapsedSummary = ['Pab: ' + (data.pabellon||'-'), 'Pob: ' + (P.total||'-'), 'Cond: ' + (P.condenados||'-'), 'Proc: ' + (P.procesados||'-')].join(' · ');
+  const collapsedSummary = [
+    data.pabellon?('Pab: '+data.pabellon):'Pab: -',
+    'Pob: '+(P.total||'-'),
+    'Cond: '+(P.condenados||'-'),
+    'Proc: '+(P.procesados||'-')
+  ].join(' · ');
 
   return (
     <div className="flex-1 flex flex-col h-full">
-      <div className="px-3 py-2 border-b border-slate-800 bg-slate-950 sticky top-0 z-10">
+      <div className="px-3 py-2 border-b border-soft bg-slate-950 sticky top-0 z-10">
         <div className="text-base capitalize">{fmtFull.format(parseYMD(ymdKey))}</div>
       </div>
 
       <div className="flex gap-2 px-3 py-2">
-        <button onClick={()=>setTab('guardia')} className={'px-4 py-2 rounded-full text-base ' + (tab==='guardia'?'bg-sky-600':'bg-slate-800')}>Guardia</button>
-        <button onClick={()=>setTab('poblacion')} className={'px-4 py-2 rounded-full text-base ' + (tab==='poblacion'?'bg-sky-600':'bg-slate-800')}>Población</button>
+        <button onClick={()=>setTab('guardia')} className={'px-4 py-2 rounded-full text-base ' + (tab==='guardia'?'bg-sky-600':'panel')}>Guardia</button>
+        <button onClick={()=>setTab('poblacion')} className={'px-4 py-2 rounded-full text-base ' + (tab==='poblacion'?'bg-sky-600':'panel')}>Población</button>
       </div>
 
       <div className="px-3">
@@ -512,29 +636,46 @@ function DayScreen({ymdKey,data,setData,setEstado,colors}){
 function DetailsPanel({collapsedText, body}){
   const [open,setOpen]=useState(true);
   return (
-    <div className="rounded-xl border border-slate-800 overflow-hidden">
+    <div className="rounded-xl border border-soft overflow-hidden">
       <button className="w-full text-left px-3 py-2 bg-slate-800/60" onClick={()=>setOpen(o=>!o)}>
         {open ? '▼ Ocultar' : '► Mostrar'} — {collapsedText}
       </button>
-      {open && <div className="p-3 bg-slate-900">{body}</div>}
+      {open && <div className="p-3" style={{background:'var(--panel)'}}>{body}</div>}
     </div>
   );
 }
 
-/* Header Guardia */
+/* Header Guardia (inputs compactos) */
 function GuardHeader({data,setData}){
   const P = data.poblacion||{};
+  const Num = (props)=>(
+    <input {...props}
+      inputMode="numeric" pattern="[0-9]*" maxLength="3"
+      className="bg-slate-900 border border-soft rounded-xl px-3 py-2 w-24 text-center"/>
+  );
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-      <Field label="Pabellón" value={data.pabellon} onChange={e=>setData({pabellon:e.target.value})}/>
-      <Field label="Población total" type="number" value={P.total} onChange={e=>setData({poblacion:{...P,total:e.target.value}})}/>
-      <Field label="Presentes" type="number" value={P.presentes} onChange={e=>setData({poblacion:{...P,presentes:e.target.value}})}/>
-      <Field label="Condenados" type="number" value={P.condenados} onChange={e=>setData({poblacion:{...P,condenados:e.target.value}})}/>
-      <Field label="Procesados" type="number" value={P.procesados} onChange={e=>setData({poblacion:{...P,procesados:e.target.value}})}/>
-      <Field label="Hospitalizados" type="number" value={P.hospitalizados} onChange={e=>setData({poblacion:{...P,hospitalizados:e.target.value}})}/>
-      <Field label="Rol (Celador/Auxiliar)" value={data.role} onChange={e=>setData({role:e.target.value})}/>
-      <Field label="Acompañado por (coma separada)" value={data.companeros} onChange={e=>setData({companeros:e.target.value})}/>
-      <TextArea label="Notas" value={data.notas} onChange={e=>setData({notas:e.target.value})}/>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+      <label className="text-sm">Pabellón
+        <input value={data.pabellon} onChange={e=>setData({pabellon:e.target.value})} className="bg-slate-900 border border-soft rounded-xl px-3 py-2 w-full"/>
+      </label>
+      <label className="text-sm">Rol
+        <input value={data.role} onChange={e=>setData({role:e.target.value})} className="bg-slate-900 border border-soft rounded-xl px-3 py-2 w-full"/>
+      </label>
+
+      <div className="flex gap-2 flex-wrap">
+        <span className="pill" style={{background:'#1f2937'}}>Pob</span><Num value={P.total||""} onChange={e=>setData({poblacion:{...P,total:e.target.value}})}/>
+        <span className="pill" style={{background:'#334155'}}>Cond</span><Num value={P.condenados||""} onChange={e=>setData({poblacion:{...P,condenados:e.target.value}})}/>
+        <span className="pill" style={{background:'#475569'}}>Proc</span><Num value={P.procesados||""} onChange={e=>setData({poblacion:{...P,procesados:e.target.value}})}/>
+        <span className="pill" style={{background:'#64748b'}}>Pres</span><Num value={P.presentes||""} onChange={e=>setData({poblacion:{...P,presentes:e.target.value}})}/>
+        <span className="pill" style={{background:'#0ea5e9'}}>Hosp</span><Num value={P.hospitalizados||""} onChange={e=>setData({poblacion:{...P,hospitalizados:e.target.value}})}/>
+      </div>
+
+      <label className="text-sm col-span-2">Acompañado por
+        <input value={data.companeros} onChange={e=>setData({companeros:e.target.value})} className="bg-slate-900 border border-soft rounded-xl px-3 py-2 w-full"/>
+      </label>
+      <label className="text-sm col-span-2">Notas
+        <textarea rows="2" value={data.notas} onChange={e=>setData({notas:e.target.value})} className="bg-slate-900 border border-soft rounded-xl px-3 py-2 w-full"/>
+      </label>
     </div>
   );
 }
@@ -555,11 +696,11 @@ function MovimientosTable({data,setData}){
         {rows.map((r,i)=> (
           <div key={i} className="grid grid-cols-5 gap-1">
             <AutoCompleteCell value={r.objeto} onChange={v=>setRow(i,{objeto:v})}/>
-            <input value={r.entrada||""} onChange={e=>setRow(i,{entrada:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
-            <input value={r.salida||""} onChange={e=>setRow(i,{salida:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
-            <input value={r.movimiento||""} onChange={e=>setRow(i,{movimiento:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
+            <input value={r.entrada||""} onChange={e=>setRow(i,{entrada:e.target.value})} className="bg-slate-900 border border-soft rounded-lg px-2 py-2 text-sm"/>
+            <input value={r.salida||""} onChange={e=>setRow(i,{salida:e.target.value})} className="bg-slate-900 border border-soft rounded-lg px-2 py-2 text-sm"/>
+            <input value={r.movimiento||""} onChange={e=>setRow(i,{movimiento:e.target.value})} className="bg-slate-900 border border-soft rounded-lg px-2 py-2 text-sm"/>
             <div className="flex gap-1">
-              <input value={r.a_cargo||""} onChange={e=>setRow(i,{a_cargo:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm flex-1"/>
+              <input value={r.a_cargo||""} onChange={e=>setRow(i,{a_cargo:e.target.value})} className="bg-slate-900 border border-soft rounded-lg px-2 py-2 text-sm flex-1"/>
               <button onClick={()=>del(i)} className="px-2 rounded-lg bg-rose-600">✕</button>
             </div>
           </div>
@@ -578,8 +719,9 @@ function AutoCompleteCell({value,onChange}){
   const [open,setOpen]=useState(false);
   const [query,setQuery]=useState(value||"");
 
+  const baseDefaults = ['Recuento', 'Servicio médico', 'Apertura', 'Patio', 'Almuerzo', 'Cena', 'Abogado', 'Cambio alojamiento', 'Ingreso', 'Libertad', 'Taller'];
   const suggestions = useMemo(()=>{
-    const base = store.objectSuggestions || [];
+    const base = [...new Set([...(store.objectSuggestions||[]), ...baseDefaults])];
     if(!query) return base.slice(0,20);
     const q=query.toLowerCase();
     return base.filter(s=> s.toLowerCase().includes(q)).slice(0,20);
@@ -602,7 +744,7 @@ function AutoCompleteCell({value,onChange}){
         onFocus={()=> setOpen(true)}
         onBlur={()=> setTimeout(()=>setOpen(false), 150)}
         placeholder="Recuento, Servicio médico…"
-        className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm w-full"
+        className="bg-slate-900 border border-soft rounded-lg px-2 py-2 text-sm w-full"
       />
       {open && suggestions.length>0 && (
         <div className="auto-list">
@@ -640,12 +782,12 @@ function PoblacionTable({data,setData}){
       <div className="space-y-2">
         {rows.map((r,i)=> (
           <div key={i} className="grid grid-cols-3 gap-1">
-            <input value={r.matricula||""} onChange={e=>setRow(i,{matricula:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm"/>
-            <select value={r.cp||"C"} onChange={e=>setRow(i,{cp:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm">
+            <input value={r.matricula||""} onChange={e=>setRow(i,{matricula:e.target.value})} className="bg-slate-900 border border-soft rounded-lg px-2 py-2 text-sm"/>
+            <select value={r.cp||"C"} onChange={e=>setRow(i,{cp:e.target.value})} className="bg-slate-900 border border-soft rounded-lg px-2 py-2 text-sm">
               <option value="C">C</option><option value="P">P</option>
             </select>
             <div className="flex gap-1">
-              <input value={r.nombre||""} onChange={e=>setRow(i,{nombre:e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm flex-1"/>
+              <input value={r.nombre||""} onChange={e=>setRow(i,{nombre:e.target.value})} className="bg-slate-900 border border-soft rounded-lg px-2 py-2 text-sm flex-1"/>
               <button onClick={()=>del(i)} className="px-2 rounded-lg bg-rose-600">✕</button>
             </div>
           </div>
@@ -662,6 +804,7 @@ function PoblacionTable({data,setData}){
 function SettingsModal({store,onClose,onSave}){
   const [start,setStart]=useState(store.pattern.start||"");
   const [turno,setTurno]=useState(store.pattern.turno||"B");
+  const [type,setType]=useState(store.pattern.type||"24x48");
   const [enabled,setEnabled]=useState(!!store.pattern.enabled);
   const [colors,setColors]=useState(store.colors||{});
   const [holidaysTxt,setHolidaysTxt]=useState((store.holidays||[]).join("\n"));
@@ -669,17 +812,16 @@ function SettingsModal({store,onClose,onSave}){
   function save(){
     const holidays = holidaysTxt.split(/\s+/).map(s=>s.trim()).filter(Boolean);
     onSave(s=> ({...s,
-      pattern:{...s.pattern, start, turno, enabled},
+      pattern:{...s.pattern, start, turno, type, enabled},
       colors:{...s.colors, ...colors},
       holidays
     })); onClose();
   }
 
-  const colorValues = new Set();
-  const duplicated = Object.entries(colors).some(([k,v])=>{
-    if(k==='patternGuardiaBg' || k==='selected' || k==='today') return false;
-    if(colorValues.has(v)) return true; colorValues.add(v); return false;
-  });
+  // aviso colores repetidos
+  const colorKeys = ['recargo','art','licencia','cubro_guardia','me_cubre_guardia','cubro_recargo','me_cubre_recargo'];
+  const seen = new Map();
+  const duplicated = colorKeys.some(k=>{ const v=colors[k]; if(!v) return false; if(seen.has(v)) return true; seen.set(v,1); return false; });
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -687,40 +829,51 @@ function SettingsModal({store,onClose,onSave}){
         <h3 className="text-lg font-semibold mb-2">Ajustes</h3>
         <div className="grid gap-3">
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-sm">Inicio patrón (día guardia)</label>
-            <input type="date" value={start} onChange={e=>setStart(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
+            <label className="text-sm">Tipo de patrón</label>
+            <select value={type} onChange={e=>setType(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2">
+              <option value="24x48">24×48</option>
+              <option value="2x4">2×4 (días)</option>
+              <option value="administrativo">Administrativo (L–V)</option>
+            </select>
+
+            <label className="text-sm">Inicio patrón (día base)</label>
+            <input type="date" value={start} onChange={e=>setStart(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2"/>
+
             <label className="text-sm">Turno</label>
-            <select value={turno} onChange={e=>setTurno(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">
+            <select value={turno} onChange={e=>setTurno(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2">
               <option>A</option><option>B</option><option>C</option>
             </select>
-            <label className="text-sm">Patrón 24×48</label>
+
+            <label className="text-sm">Patrón activo</label>
             <input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div className="text-sm opacity-80 col-span-2">Colores por estado (sin repetir):</div>
-            {['guardia','recargo','art','licencia'].map(key=>(
+            {['recargo','art','licencia','cubro_guardia','me_cubre_guardia','cubro_recargo','me_cubre_recargo'].map(key=>(
               <React.Fragment key={key}>
-                <label className="text-sm capitalize">{key}</label>
+                <label className="text-sm capitalize">{key.replaceAll('_',' ')}</label>
                 <input type="color" value={colors[key]} onChange={e=>setColors(c=>({...c,[key]:e.target.value}))}/>
               </React.Fragment>
             ))}
             <label className="text-sm">Fondo patrón guardia</label>
-            <input type="text" value={colors.patternGuardiaBg} onChange={e=>setColors(c=>({...c,patternGuardiaBg:e.target.value}))} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
+            <input type="text" value={colors.patternGuardiaBg} onChange={e=>setColors(c=>({...c,patternGuardiaBg:e.target.value}))} className="bg-slate-900 border border-soft rounded-xl px-3 py-2"/>
             <label className="text-sm">Borde hoy</label>
             <input type="color" value={colors.today} onChange={e=>setColors(c=>({...c,today:e.target.value}))}/>
             <label className="text-sm">Selección</label>
             <input type="color" value={colors.selected} onChange={e=>setColors(c=>({...c,selected:e.target.value}))}/>
+            <label className="text-sm">Píldora de resumen</label>
+            <input type="color" value={colors.summaryPill} onChange={e=>setColors(c=>({...c,summaryPill:e.target.value}))}/>
           </div>
           {duplicated && <div className="text-amber-400 text-xs">Aviso: hay colores repetidos entre estados.</div>}
 
           <div>
             <div className="text-sm mb-1">Feriados (uno por línea, formato YYYY-MM-DD)</div>
-            <textarea rows="4" value={holidaysTxt} onChange={e=>setHolidaysTxt(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
+            <textarea rows="4" value={holidaysTxt} onChange={e=>setHolidaysTxt(e.target.value)} className="w-full bg-slate-900 border border-soft rounded-xl px-3 py-2"/>
           </div>
 
           <div className="flex justify-end gap-2">
-            <button className="btn bg-slate-700" onClick={onClose}>Cerrar</button>
+            <button className="btn panel" onClick={onClose}>Cerrar</button>
             <button className="btn bg-emerald-600" onClick={save}>Guardar</button>
           </div>
         </div>
@@ -729,10 +882,10 @@ function SettingsModal({store,onClose,onSave}){
   );
 }
 
-/* ===== Notas ===== */
+/* ===== Notas (sin ART ni LICENCIA) ===== */
 function NotesScreen({store,setStore}){
   const [items,setItems] = useState(store.notes||[]);
-  const [type,setType] = useState('sueldo');
+  const [type,setType] = useState('sueldo'); // sueldo | pago_recargos | aguinaldo | texto
   const [date,setDate] = useState(ymd(new Date()));
   const [text,setText] = useState('');
   useEffect(()=> setItems(store.notes||[]), [store.notes]);
@@ -741,21 +894,19 @@ function NotesScreen({store,setStore}){
   return (
     <div className="flex-1 overflow-y-auto p-3">
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-3">
-        <select value={type} onChange={e=>setType(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">
+        <select value={type} onChange={e=>setType(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2">
           <option value="sueldo">Día de paga (sueldo)</option>
           <option value="pago_recargos">Pagos de recargos</option>
-          <option value="art">ART Nº</option>
-          <option value="licencia">Licencia (rango de días)</option>
           <option value="aguinaldo">Pago aguinaldo</option>
           <option value="texto">Texto a elección</option>
         </select>
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
-        <input placeholder="Detalle / nº / rango" value={text} onChange={e=>setText(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2"/>
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2"/>
+        <input placeholder="Detalle / nº / rango" value={text} onChange={e=>setText(e.target.value)} className="bg-slate-900 border border-soft rounded-xl px-3 py-2"/>
         <button onClick={add} className="px-3 py-2 rounded-xl bg-emerald-600">Agregar</button>
       </div>
       <div className="space-y-2">
         {items.map(it=> (
-          <div key={it.id} className="bg-slate-800 rounded-xl p-3 flex items-start gap-2">
+          <div key={it.id} className="panel rounded-xl p-3 flex items-start gap-2">
             <div className="text-xs px-2 py-1 rounded bg-sky-700 capitalize">{it.type}</div>
             <div className="text-sm flex-1">
               <div className="opacity-80">{it.date}</div>
@@ -769,27 +920,9 @@ function NotesScreen({store,setStore}){
   );
 }
 
-/* ===== Inputs base ===== */
-function Field({label, ...props}){
-  const cls = (props.className||""); const rest = {...props}; delete rest.className;
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="opacity-80">{label}</span>
-      <input {...rest} className={"bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 " + cls}/>
-    </label>
-  );
-}
-function TextArea({label, ...props}){
-  const cls = (props.className||""); const rest = {...props}; delete rest.className;
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="opacity-80">{label}</span>
-      <textarea {...rest} rows={3} className={"bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 " + cls}/>
-    </label>
-  );
-}
-
 /* ===== Provider ===== */
+const StoreCtx = React.createContext(null);
+function useStoreContext(){ return React.useContext(StoreCtx); }
 function Root(){
   const storeHook = useStore();
   return (
@@ -803,7 +936,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
 </script>
 
 <script>
-// Registrar el SW físico (requerido para GitHub Pages)
+// Registrar tu SW físico (sw.js) – déjalo al lado de este index.html
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', ()=> {
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
