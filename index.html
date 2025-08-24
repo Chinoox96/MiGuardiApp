@@ -78,7 +78,6 @@ async function idbSet(val,key='singleton'){ try{ const db=await idbOpen(); await
 function defaultState(){
   return {
     days: {},
-    // patrón: type = '24x48' | '2x4' | 'administrativo'
     pattern: { enabled:false, start:"", turno:"B", type:"24x48" },
     colors: {
       recargo: "#eab308",
@@ -93,7 +92,7 @@ function defaultState(){
       today: "#34d399",
       summaryPill: "#334155"
     },
-    theme: "dark", // 'dark' | 'light'
+    theme: "dark",
     holidays: [],
     notes: [],
     objectSuggestions: []
@@ -104,7 +103,6 @@ function useStore(){
   const [state,setState] = useState(()=>{ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null") || defaultState(); }catch{ return defaultState(); }});
   useEffect(()=>{ (async()=>{ const from = await idbGet(); if(from){ setState(from); }})(); },[]);
   useEffect(()=>{ localStorage.setItem(LS_KEY, JSON.stringify(state)); idbSet(state); },[state]);
-  // aplicar tema
   useEffect(()=>{
     const root = document.documentElement;
     if(state.theme==='light'){ root.classList.add('theme-light'); }
@@ -122,9 +120,9 @@ function emptyDay(key){
     role:"",
     companeros:"",
     notas:"",
-    estado: null,        // recargo | cubro_guardia | me_cubre_guardia | cubro_recargo | me_cubre_recargo | art | licencia
-    pago:false,          // 💲 (exclusivo con swap)
-    swap:false,          // 🔄
+    estado: null,
+    pago:false,
+    swap:false,
     linkedDate:"",
     linkedType:"",
     movimientos:[],
@@ -142,7 +140,7 @@ function expandLicenseByWorkingDays(startStr, count, holidaysSet, skipWeekends=t
   while(out.length < count){
     const key=ymd(d);
     const weekend = skipWeekends && isWeekend(d);
-    const holiday = holidaysSet.has(key);
+       const holiday = holidaysSet.has(key);
     if(!(weekend || holiday)) out.push(key);
     d = addDays(d,1);
   }
@@ -158,27 +156,16 @@ function expandLicenseByCalendarDays(startStr, count){
 function makePatternFn(pattern){
   if(!pattern.enabled || !pattern.start) return ()=>false;
   const anchor = parseYMD(pattern.start);
-  const startKey = ymd(anchor);
   return (date)=>{
-    const dayKey = ymd(date);
-    const diff = Math.floor((parseYMD(dayKey) - anchor)/86400000);
-    if(pattern.type === '24x48'){
-      return (diff % 3 === 0); // 1 on + 2 off
-    }
-    if(pattern.type === '2x4'){
-      // 2 trabajo, 4 franco -> ciclo de 6 días: on en (0,1), off (2..5)
-      const m = ((diff % 6)+6)%6;
-      return (m===0 || m===1);
-    }
-    if(pattern.type === 'administrativo'){
-      const d = new Date(date).getDay(); // 0..6 Domingo..Sábado
-      return d>=1 && d<=5; // lun..vie
-    }
+    const diff = Math.floor((parseYMD(ymd(date)) - anchor)/86400000);
+    if(pattern.type === '24x48'){ return (diff % 3 === 0); }
+    if(pattern.type === '2x4'){ const m = ((diff % 6)+6)%6; return (m===0 || m===1); }
+    if(pattern.type === 'administrativo'){ const d=new Date(date).getDay(); return d>=1 && d<=5; }
     return false;
   };
 }
 
-/* ========= Contexto ========= */
+/* ========= Contexto (SOLO AQUÍ) ========= */
 const StoreCtx = React.createContext(null);
 function useStoreContext(){ return React.useContext(StoreCtx); }
 
@@ -188,23 +175,21 @@ function App(){
   const today = new Date();
   const [cursor,setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedKey,setSelectedKey] = useState(null);
-  const [screen,setScreen] = useState('month'); // 'month' | 'day' | 'notes'
+  const [screen,setScreen] = useState('month');
   const [quickKey,setQuickKey] = useState(null);
   const [showSettings,setShowSettings] = useState(false);
   const [showLicense,setShowLicense] = useState(null);
   const [installPrompt, setInstallPrompt] = useState(null);
 
-  // PWA install prompt
   useEffect(()=>{
     const handler=(e)=>{ e.preventDefault(); setInstallPrompt(e); };
     window.addEventListener('beforeinstallprompt', handler);
     return ()=> window.removeEventListener('beforeinstallprompt', handler);
   },[]);
 
-  // Celdas y swipe para cambiar mes
   const cells = useMemo(()=>{
     const start = startOfMonth(cursor);
-    const startWeekDay = (start.getDay()+6)%7; // Lunes=0
+    const startWeekDay = (start.getDay()+6)%7;
     const first = addDays(start,-startWeekDay);
     return Array.from({length:42},(_,i)=> addDays(first,i));
   },[cursor]);
@@ -216,7 +201,6 @@ function App(){
 
   function setDayEstado(k, {estado=null, pago=false, swap=false, linkedDate="", linkedType="", notaTexto=""}){
     if(pago && swap){ pago=false; }
-    // Guardar nota rápida si vino
     if(notaTexto && notaTexto.trim()){
       setStore(s=> ({...s, notes: [...s.notes, {id:crypto.randomUUID?.()||String(Date.now()), type:'texto', date:k, text:notaTexto.trim()}]}));
     }
@@ -235,7 +219,6 @@ function App(){
     saveDay(k,{ ...d, estado, pago, swap, linkedDate, linkedType });
   }
 
-  // taps & swipes día
   const lastTapRef = useRef(0);
   function onTapDay(d){
     const t=Date.now();
@@ -245,7 +228,6 @@ function App(){
   }
   function openDay(d){ const k=ymd(d); setSelectedKey(k); setScreen('day'); }
 
-  // swipe mes
   const swipeStartX = useRef(null);
   const monthWrapRef = useRef(null);
   useEffect(()=>{
@@ -253,8 +235,8 @@ function App(){
     const onStart = (e)=>{ swipeStartX.current = e.touches[0].clientX; };
     const onEnd = (e)=>{ if(swipeStartX.current==null) return;
       const dx = e.changedTouches[0].clientX - swipeStartX.current;
-      if(dx > 60) setCursor(d=> new Date(d.getFullYear(), d.getMonth()-1, 1));     // derecha -> mes anterior
-      if(dx < -60) setCursor(d=> new Date(d.getFullYear(), d.getMonth()+1, 1));    // izquierda -> mes siguiente
+      if(dx > 60) setCursor(d=> new Date(d.getFullYear(), d.getMonth()-1, 1));
+      if(dx < -60) setCursor(d=> new Date(d.getFullYear(), d.getMonth()+1, 1));
       swipeStartX.current=null;
     };
     el.addEventListener('touchstart', onStart, {passive:true});
@@ -262,7 +244,6 @@ function App(){
     return ()=>{ el.removeEventListener('touchstart', onStart); el.removeEventListener('touchend', onEnd); };
   }, [monthWrapRef.current]);
 
-  // Resumen bajo el calendario
   const summary = useMemo(()=>{
     if(!selectedKey) return null;
     const d = dayData(selectedKey);
@@ -279,16 +260,15 @@ function App(){
     if(d.swap) pills.push('🔄');
     const P=d.poblacion||{};
     const smalls = [
-      d.pabellon?`Pab: ${d.pabellon}`:null,
-      P.total?`Pob: ${P.total}`:null,
-      P.condenados?`Cond: ${P.condenados}`:null,
-      P.procesados?`Proc: ${P.procesados}`:null,
-      d.companeros?`Comp: ${d.companeros}`:null
+      d.pabellon?('Pab: '+d.pabellon):null,
+      P.total?('Pob: '+P.total):null,
+      P.condenados?('Cond: '+P.condenados):null,
+      P.procesados?('Proc: '+P.procesados):null,
+      d.companeros?('Comp: '+d.companeros):null
     ].filter(Boolean);
     return {pills, smalls};
   },[selectedKey, store.days]);
 
-  // botón instalar
   async function onInstall(){
     if(!installPrompt) return;
     installPrompt.prompt();
@@ -326,7 +306,6 @@ function App(){
             />
           </div>
 
-          {/* Resumen fijo debajo del calendario */}
           {selectedKey && summary && (
             <div className="px-3 pb-3">
               <div className="panel rounded-xl px-3 py-2 text-sm">
@@ -476,7 +455,6 @@ function MonthCell({date,inMonth,info,pattern,isToday,isSel,colors,onTap,onOpen,
   if(isSel){ styleObj.outline = '2px solid ' + (colors.selected||'#22c55e'); }
   if(isToday){ styleObj.boxShadow = 'inset 0 0 0 2px ' + (colors.today||'#34d399'); }
 
-  // abreviatura cuando NO es guardia de patrón
   const abbr = info?.estado ? (
     {recargo:'R', art:'ART', licencia:'LIC', cubro_guardia:'CG', me_cubre_guardia:'MG', cubro_recargo:'CR', me_cubre_recargo:'MR'}[info.estado] || ''
   ) : '';
@@ -557,7 +535,7 @@ function QuickModal({ymdKey,data,colors,onClose,onPick,onOpenLicencia}){
 
 /* ===== Modal Licencia ===== */
 function LicenseModal({date,holidays,onClose,onApply}){
-  const [mode,setMode]=useState('rango'); // 'rango' | 'calculo'
+  const [mode,setMode]=useState('rango');
   const [hasta,setHasta]=useState("");
   const [corridos,setCorridos]=useState("");
   const [habiles,setHabiles]=useState("");
@@ -818,7 +796,6 @@ function SettingsModal({store,onClose,onSave}){
     })); onClose();
   }
 
-  // aviso colores repetidos
   const colorKeys = ['recargo','art','licencia','cubro_guardia','me_cubre_guardia','cubro_recargo','me_cubre_recargo'];
   const seen = new Map();
   const duplicated = colorKeys.some(k=>{ const v=colors[k]; if(!v) return false; if(seen.has(v)) return true; seen.set(v,1); return false; });
@@ -885,7 +862,7 @@ function SettingsModal({store,onClose,onSave}){
 /* ===== Notas (sin ART ni LICENCIA) ===== */
 function NotesScreen({store,setStore}){
   const [items,setItems] = useState(store.notes||[]);
-  const [type,setType] = useState('sueldo'); // sueldo | pago_recargos | aguinaldo | texto
+  const [type,setType] = useState('sueldo');
   const [date,setDate] = useState(ymd(new Date()));
   const [text,setText] = useState('');
   useEffect(()=> setItems(store.notes||[]), [store.notes]);
@@ -920,9 +897,7 @@ function NotesScreen({store,setStore}){
   );
 }
 
-/* ===== Provider ===== */
-const StoreCtx = React.createContext(null);
-function useStoreContext(){ return React.useContext(StoreCtx); }
+/* ===== Provider (sin redeclarar StoreCtx) ===== */
 function Root(){
   const storeHook = useStore();
   return (
